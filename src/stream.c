@@ -52,17 +52,10 @@ void
 print_v4l2_fmtdesc(struct v4l2_fmtdesc *fmtdesc)
 {
     printf(
-	"Supported Format Description:\n"
-	"         Index: %d\n"
-	"          Type: %d\n"
-	"    Compressed: %c\n"
-	"      Emulated: %c\n"
-	"   Description: %s\n"
-	"  Pixel Format: %c%c%c%c\n\n",
+	"Format %d: (%c%c) %s - %c%c%c%c\n",
 	fmtdesc->index,
-	fmtdesc->type,
-	(fmtdesc->flags & V4L2_FMT_FLAG_COMPRESSED) ? 'T' : 'F',
-	(fmtdesc->flags & V4L2_FMT_FLAG_EMULATED) ? 'T' : 'F',
+	(fmtdesc->flags & V4L2_FMT_FLAG_COMPRESSED) ? 'C' : '-',
+	(fmtdesc->flags & V4L2_FMT_FLAG_EMULATED) ? 'E' : '-',
 	fmtdesc->description,
 	fmtdesc->pixelformat & 0xFF,
 	(fmtdesc->pixelformat >> 8) & 0xFF,
@@ -77,43 +70,33 @@ print_v4l2_fmtdesc(struct v4l2_fmtdesc *fmtdesc)
 void
 print_v4l2_frmsizeenum(struct v4l2_frmsizeenum *frmsize)
 {
+    if (frmsize->type != V4L2_FRMSIZE_TYPE_DISCRETE)
+	printf("Unsupported framesize type.\n");
+
+
     printf(
-	"Supported Framesize:\n"
-	"         Index: %d\n"
-	"          Type: ",
-	frmsize->index
+	"  Framesize %d: %d x %d\n",
+	frmsize->index,
+	frmsize->discrete.width,
+	frmsize->discrete.height
     );
+}
 
-    switch (frmsize->type) {
-    case V4L2_FRMSIZE_TYPE_DISCRETE:
-	printf(
-	    "Discrete\n"
-	    "         Width: %d\n"
-	    "        Height: %d\n",
-	    frmsize->discrete.width,
-	    frmsize->discrete.height
-	);
-	break;
+/**
+ * Print out contents of a struct v4l2_frmivalenum.
+ */
+void
+print_v4l2_frmivalenum(struct v4l2_frmivalenum *frmival)
+{
+    if (frmival->type != V4L2_FRMIVAL_TYPE_DISCRETE)
+	printf("Unsupported framerate type.\n");
 
-    case V4L2_FRMSIZE_TYPE_CONTINUOUS:
-    case V4L2_FRMSIZE_TYPE_STEPWISE:
-	printf(
-	    "Step-wise\n"
-	    "    Min. Width: %d\n"
-	    "    Max. Width: %d\n"
-	    "    Step Width: %d\n"
-	    "   Min. Height: %d\n"
-	    "   Max. Height: %d\n"
-	    "   Step Height: %d\n",
-	    frmsize->stepwise.min_width,
-	    frmsize->stepwise.max_width,
-	    frmsize->stepwise.step_width,
-	    frmsize->stepwise.min_height,
-	    frmsize->stepwise.max_height,
-	    frmsize->stepwise.step_height
-	);
-	break;
-    }
+    printf(
+	"    Framerate %d: %d / %d\n",
+	frmival->index,
+	frmival->discrete.numerator,
+	frmival->discrete.denominator
+    );
 }
 
 /**
@@ -162,11 +145,7 @@ query_caps(int fd)
 }
 
 /**
- * Query and specify cropping resolution of device.
- */
-
-/**
- * Query and specify format for usage.
+ * Query available formats for a device.
  */
 int
 query_fmt(int fd)
@@ -188,6 +167,22 @@ query_fmt(int fd)
 	while (ioctl_r(fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0) {
 	    if (verbose)
 		print_v4l2_frmsizeenum(&frmsize);
+
+	    if (frmsize.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
+		struct v4l2_frmivalenum frmival;
+
+		frmival.index = 0;
+		frmival.pixel_format = fmtdesc.pixelformat;
+		frmival.width = frmsize.discrete.width;
+		frmival.height = frmsize.discrete.height;
+
+		while (ioctl_r(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) == 0) {
+		    if (verbose)
+			print_v4l2_frmivalenum(&frmival);
+
+		    frmival.index++;
+		}
+	    }
 
 	    frmsize.index++;
 	}
@@ -270,7 +265,7 @@ main(int argc, char *argv[])
 		"Stream video device to ach channel.\n"
 		"Options:\n"
 		"  -d    Specify device name. \"%s\" by default.\n"
-		"  -v    Enable verbose output.\n"
+		"  -l    Enable verbose output.\n"
 		"  -?,h  Show this help.\n",
 		argv[0],
 		opts,
