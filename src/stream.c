@@ -72,6 +72,51 @@ print_v4l2_fmtdesc(struct v4l2_fmtdesc *fmtdesc)
 }
 
 /**
+ * Print out contents of a struct v4l2_frmsizeenum.
+ */
+void
+print_v4l2_frmsizeenum(struct v4l2_frmsizeenum *frmsize)
+{
+    printf(
+	"Supported Framesize:\n"
+	"         Index: %d\n"
+	"          Type: ",
+	frmsize->index
+    );
+
+    switch (frmsize->type) {
+    case V4L2_FRMSIZE_TYPE_DISCRETE:
+	printf(
+	    "Discrete\n"
+	    "         Width: %d\n"
+	    "        Height: %d\n",
+	    frmsize->discrete.width,
+	    frmsize->discrete.height
+	);
+	break;
+
+    case V4L2_FRMSIZE_TYPE_CONTINUOUS:
+    case V4L2_FRMSIZE_TYPE_STEPWISE:
+	printf(
+	    "Step-wise\n"
+	    "    Min. Width: %d\n"
+	    "    Max. Width: %d\n"
+	    "    Step Width: %d\n"
+	    "   Min. Height: %d\n"
+	    "   Max. Height: %d\n"
+	    "   Step Height: %d\n",
+	    frmsize->stepwise.min_width,
+	    frmsize->stepwise.max_width,
+	    frmsize->stepwise.step_width,
+	    frmsize->stepwise.min_height,
+	    frmsize->stepwise.max_height,
+	    frmsize->stepwise.step_height
+	);
+	break;
+    }
+}
+
+/**
  * Wrapper around ioctl() to print out error message upon failure.
  */
 int
@@ -88,7 +133,7 @@ ioctl_r(int fd, int request, void *arg)
 }
 
 /**
- * Query the capabilities of a device.
+ * Query the capabilities of a device, verify support.
  */
 int
 query_caps(int fd)
@@ -101,7 +146,7 @@ query_caps(int fd)
     if (verbose)
 	print_v4l2_capability(&caps);
 
-    // Verify single-planar video capture is supported.
+    // Verify video capture is supported.
     if (!(caps.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
 	fprintf(stderr, "Device does not support video capture.\n");
 	return (-1);
@@ -116,6 +161,13 @@ query_caps(int fd)
     return (0);
 }
 
+/**
+ * Query and specify cropping resolution of device.
+ */
+
+/**
+ * Query and specify format for usage.
+ */
 int
 query_fmt(int fd)
 {
@@ -125,9 +177,20 @@ query_fmt(int fd)
     fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
     int r;
-    while ((r = ioctl_r(fd, VIDIOC_ENUM_FMT, &fmtdesc)) == 0) {
+    while (ioctl_r(fd, VIDIOC_ENUM_FMT, &fmtdesc) == 0) {
 	if (verbose)
 	    print_v4l2_fmtdesc(&fmtdesc);
+
+	struct v4l2_frmsizeenum frmsize;
+
+	frmsize.index = 0;
+	frmsize.pixel_format = fmtdesc.pixelformat;
+	while (ioctl_r(fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0) {
+	    if (verbose)
+		print_v4l2_frmsizeenum(&frmsize);
+
+	    frmsize.index++;
+	}
 
 	fmtdesc.index++;
     }
@@ -168,6 +231,9 @@ open_device(char *video_device)
     return (fd);
 }
 
+/**
+ * Close a video device. Returns 0 on success, -1 on failure.
+ */
 int
 close_device(int fd)
 {
