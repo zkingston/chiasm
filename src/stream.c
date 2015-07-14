@@ -15,6 +15,7 @@
 #define CH_DEFAULT_DEVICE "/dev/video0"
 
 bool verbose = false;
+bool list = false;
 
 /**
  * Print out contents of a struct v4l2_capability.
@@ -70,6 +71,7 @@ print_v4l2_fmtdesc(struct v4l2_fmtdesc *fmtdesc)
 void
 print_v4l2_frmsizeenum(struct v4l2_frmsizeenum *frmsize)
 {
+    // Only support for discrete resolutions currently.
     if (frmsize->type != V4L2_FRMSIZE_TYPE_DISCRETE)
 	printf("Unsupported framesize type.\n");
 
@@ -88,6 +90,7 @@ print_v4l2_frmsizeenum(struct v4l2_frmsizeenum *frmsize)
 void
 print_v4l2_frmivalenum(struct v4l2_frmivalenum *frmival)
 {
+    // Only support for discrete framerates currently.
     if (frmival->type != V4L2_FRMIVAL_TYPE_DISCRETE)
 	printf("Unsupported framerate type.\n");
 
@@ -157,17 +160,19 @@ query_fmt(int fd)
 
     int r;
     while (ioctl_r(fd, VIDIOC_ENUM_FMT, &fmtdesc) == 0) {
-	if (verbose)
+	if (list)
 	    print_v4l2_fmtdesc(&fmtdesc);
 
 	struct v4l2_frmsizeenum frmsize;
 
 	frmsize.index = 0;
 	frmsize.pixel_format = fmtdesc.pixelformat;
+
 	while (ioctl_r(fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0) {
-	    if (verbose)
+	    if (list)
 		print_v4l2_frmsizeenum(&frmsize);
 
+	    // Only supporting discrete resolutions currently.
 	    if (frmsize.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
 		struct v4l2_frmivalenum frmival;
 
@@ -177,7 +182,7 @@ query_fmt(int fd)
 		frmival.height = frmsize.discrete.height;
 
 		while (ioctl_r(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) == 0) {
-		    if (verbose)
+		    if (list)
 			print_v4l2_frmivalenum(&frmival);
 
 		    frmival.index++;
@@ -248,7 +253,7 @@ main(int argc, char *argv[])
     char *video_device = CH_DEFAULT_DEVICE;
 
     int opt;
-    char *opts = "d:vh?";
+    char *opts = "d:lvh?";
     while ((opt = getopt(argc, argv, opts)) != -1) {
 	switch (opt) {
 	case 'd':
@@ -256,6 +261,9 @@ main(int argc, char *argv[])
 	    break;
 	case 'v':
 	    verbose = true;
+	    break;
+	case 'l':
+	    list = true;
 	    break;
 	case 'h':
 	case '?':
@@ -265,7 +273,8 @@ main(int argc, char *argv[])
 		"Stream video device to ach channel.\n"
 		"Options:\n"
 		"  -d    Specify device name. \"%s\" by default.\n"
-		"  -l    Enable verbose output.\n"
+		"  -l    List formats, resolutions, framerates and exit.\n"
+		"  -v    Enable verbose output.\n"
 		"  -?,h  Show this help.\n",
 		argv[0],
 		opts,
@@ -289,6 +298,9 @@ main(int argc, char *argv[])
 	fprintf(stderr, "Exiting...\n");
 	return (-1);
     }
+
+    if (list)
+	return (0);
 
     return (0);
 }
