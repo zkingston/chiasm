@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <limits.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
@@ -151,17 +152,15 @@ query_caps(int fd)
  * Query available formats for a device.
  */
 int
-query_fmt(int fd)
+list_fmts(int fd)
 {
     struct v4l2_fmtdesc fmtdesc;
 
     fmtdesc.index = 0;
     fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
-    int r;
     while (ioctl_r(fd, VIDIOC_ENUM_FMT, &fmtdesc) == 0) {
-	if (list)
-	    print_v4l2_fmtdesc(&fmtdesc);
+	print_v4l2_fmtdesc(&fmtdesc);
 
 	struct v4l2_frmsizeenum frmsize;
 
@@ -169,30 +168,68 @@ query_fmt(int fd)
 	frmsize.pixel_format = fmtdesc.pixelformat;
 
 	while (ioctl_r(fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0) {
-	    if (list)
-		print_v4l2_frmsizeenum(&frmsize);
+	    print_v4l2_frmsizeenum(&frmsize);
 
 	    // Only supporting discrete resolutions currently.
 	    if (frmsize.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
 		struct v4l2_frmivalenum frmival;
 
+		// Print out maximum framerate for each resolution.
 		frmival.index = 0;
 		frmival.pixel_format = fmtdesc.pixelformat;
 		frmival.width = frmsize.discrete.width;
 		frmival.height = frmsize.discrete.height;
 
-		while (ioctl_r(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) == 0) {
-		    if (list)
-			print_v4l2_frmivalenum(&frmival);
-
-		    frmival.index++;
-		}
+		if (ioctl_r(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) != -1)
+		    print_v4l2_frmivalenum(&frmival);
 	    }
 
 	    frmsize.index++;
 	}
 
 	fmtdesc.index++;
+    }
+
+    return (0);
+}
+
+/**
+ * Initialize device state.
+ */
+int
+init_device(int fd, int format_idx, int resolution_idx)
+{
+    struct v4l2_fmtdesc fmtdesc;
+    struct v4l2_frmsizeenum frmsize;
+
+    fmtdesc.index = format_idx;
+    fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+    if (ioctl_r(fd, VIDIOC_ENUM_FMT, &fmtdesc) == -1) {
+	fprintf(stderr, "Invalid format index %d.\n", format_idx);
+	return (-1);
+    }
+
+    frmsize.index = resolution_idx;
+    frmsize.pixel_format = fmtdesc.pixelformat;
+
+    if (ioctl_r(fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == -1) {
+	fprintf(stderr, "Invalid framesize index %d.\n", resolution_idx);
+	return (-1);
+    }
+
+    struct v4l2_format format;
+
+    format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    format.fmt.pix.width = frmsize.discrete.width;
+    format.fmt.pix.height = frmsize.discrete.height;
+    format.fmt.pix.pixelformat = fmtdesc.pixelformat;
+    format.fmt.pix.field = V4L2_FIELD_ANY;
+    format.fmt.pix.bytesperline = 0;
+
+    if (ioctl_r(fd, VIDIOC_S_FMT, &format) == -1) {
+	fprintf(stderr, "Could not set output format.\n");
+	return (-1);
     }
 
     return (0);
@@ -247,13 +284,34 @@ close_device(int fd)
 }
 
 int
+parse_uint(char *s)
+{
+    long tmp = strtol(s, NULL, 10);
+
+    if (errno == EINVAL) {
+	fprintf(stderr, "Invalid value in %s.\n", s);
+	return (-1);
+    }
+
+    if (tmp < 0 || tmp > INT_MAX) {
+	fprintf(stderr, "Value of %s out of range.\n", s);
+	return (-1);
+    }
+
+    return ((int) tmp);
+}
+
+int
 main(int argc, char *argv[])
 {
     int fd;
     char *video_device = CH_DEFAULT_DEVICE;
 
+    int format_idx = -1;
+    int resolution_idx = -1;
+
     int opt;
-    char *opts = "d:lvh?";
+    char *opts = "d:f:r:s:lvh?";
     while ((opt = getopt(argc, argv, opts)) != -1) {
 	switch (opt) {
 	case 'd':
@@ -265,6 +323,18 @@ main(int argc, char *argv[])
 	case 'l':
 	    list = true;
 	    break;
+	case 'f':
+	    format_idx = parse_uint(optarg);
+	    if (format_idx < 0)
+		return (-1);
+
+	    break;
+	case 'r':
+	    resolution_idx = parse_uint(optarg);
+	    if (resolution_idx < 0)
+		return (-1);
+
+	    break;
 	case 'h':
 	case '?':
 	default:
@@ -272,7 +342,9 @@ main(int argc, char *argv[])
 		"Usage: %s [%s]\n"
 		"Stream video device to ach channel.\n"
 		"Options:\n"
-		"  -d    Specify device name. \"%s\" by default.\n"
+		"  -d    Device name. \"%s\" by default.\n"
+		"  -f    Index of image format to use.\n"
+		"  -r    Index of image resolution to use.\n"
 		"  -l    List formats, resolutions, framerates and exit.\n"
 		"  -v    Enable verbose output.\n"
 		"  -?,h  Show this help.\n",
@@ -285,22 +357,28 @@ main(int argc, char *argv[])
     }
 
     if ((fd = open_device(video_device)) == -1) {
-	fprintf(stderr, "Exiting...\n");
 	return (-1);
     }
 
-    if (query_caps(fd) == -1) {
-	fprintf(stderr, "Exiting...\n");
-	return (-1);
+    if (query_caps(fd) == -1)
+	goto cleanup;
+
+    if (list) {
+	list_fmts(fd);
+	goto cleanup;
     }
 
-    if (query_fmt(fd) == -1) {
-	fprintf(stderr, "Exiting...\n");
-	return (-1);
+    if (format_idx == -1 || resolution_idx == -1) {
+	fprintf(stderr, "Must specify output format and resolution.\n");
+	goto cleanup;
     }
 
-    if (list)
-	return (0);
+    if (init_device(fd, format_idx, resolution_idx) == -1)
+	goto cleanup;
+
+cleanup:
+    if (fd > 0)
+	close_device(fd);
 
     return (0);
 }
