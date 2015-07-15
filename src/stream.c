@@ -26,7 +26,6 @@
 #define CH_DEFAULT_HEIGHT 240
 #define CH_DEFAULT_BUFNUM 5
 
-bool verbose = false;
 bool list = false;
 
 /**
@@ -46,6 +45,34 @@ ioctl_r(int fd, int request, void *arg)
 }
 
 /**
+ * Converts a pixelformat code into a readable character buffer
+ */
+void
+pixfmt_to_string(__u32 pixfmt, char *buf)
+{
+    size_t idx;
+    for (idx = 0; idx < 4; idx++)
+	buf[idx] = (pixfmt >> (8 * idx)) & 0xFF;
+
+    buf[idx] = '\0';
+}
+
+/**
+ * Convert a 4-character string into the pixelformat code.
+ */
+__u32
+string_to_pixfmt(char *buf)
+{
+    __u32 pixfmt = 0;
+
+    size_t idx;
+    for (idx = 0; idx < 4; idx++)
+	pixfmt |= (buf[idx] << (8 * idx));
+
+    return (pixfmt);
+}
+
+/**
  * Query the capabilities of a device, verify support.
  */
 int
@@ -55,9 +82,6 @@ query_caps(int fd)
 
     if (ioctl_r(fd, VIDIOC_QUERYCAP, &caps) == -1)
 	return (-1);
-
-    if (verbose)
-	print_v4l2_capability(&caps);
 
     // Verify video capture is supported.
     if (!(caps.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
@@ -399,14 +423,11 @@ main(int argc, char *argv[])
     __u32 buffer_count = CH_DEFAULT_BUFNUM;
 
     int opt;
-    char *opts = "b:d:f:g:s:lvh?";
+    char *opts = "b:d:f:g:s:lh?";
     while ((opt = getopt(argc, argv, opts)) != -1) {
 	switch (opt) {
 	case 'd':
 	    video_device = optarg;
-	    break;
-	case 'v':
-	    verbose = true;
 	    break;
 	case 'l':
 	    list = true;
@@ -447,7 +468,6 @@ main(int argc, char *argv[])
 		"  -g    Frame geometry in <w>x<h> format. %ux%u by default.\n"
 		"  -b    Specify number of buffers to request. %u by default.\n"
 		"  -l    List formats, resolutions, framerates and exit.\n"
-		"  -v    Enable verbose output.\n"
 		"  -?,h  Show this help.\n",
 		argv[0],
 		CH_DEFAULT_DEVICE,
