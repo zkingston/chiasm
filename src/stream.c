@@ -11,6 +11,8 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <sys/select.h>
+#include <sys/time.h>
 #include <fcntl.h>
 
 #include <linux/types.h>
@@ -183,6 +185,9 @@ unmap_buffers(__u32 buffer_count, struct ch_buf *buffers)
 {
     size_t idx;
     for (idx = 0; idx < buffer_count; idx++) {
+	if (buffers[idx].start == NULL)
+	    continue;
+
 	if (munmap(buffers[idx].start, buffers[idx].length) == -1) {
 	    fprintf(stderr, "Failed to munmap buffer. %d: %s\n",
 		    errno, strerror(errno));
@@ -287,6 +292,9 @@ init_stream(int fd, __u32 buffer_count)
     return (0);
 }
 
+/**
+ * Stop streaming from the device.
+ */
 int
 stop_stream(int fd)
 {
@@ -294,6 +302,38 @@ stop_stream(int fd)
 
     if (ioctl_r(fd, VIDIOC_STREAMOFF, &type) == -1) {
 	fprintf(stderr, "Failed to stop stream.\n");
+	return (-1);
+    }
+
+    return (0);
+}
+
+/**
+ * Read a frame from one of the buffers.
+ */
+int
+query_frame(int fd, __u32 buffer_count, struct ch_buf *buffers)
+{
+    struct v4l2_buffer buf;
+
+    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    buf.memory = V4L2_MEMORY_MMAP;
+
+    if (ioctl_r(fd, VIDIOC_DQBUF, &buf) == -1) {
+	fprintf(stderr, "Failure dequeuing buffer.\n");
+	return (-1);
+    }
+
+    if (buf.index > buffer_count) {
+	fprintf(stderr, "Bad buffer index returned from deque.\n");
+	return (-1);
+    }
+
+    fwrite(buffers[buf.index].start, buf.bytesused, 1, stdout);
+    fflush(stdout);
+
+    if (ioctl_r(fd, VIDIOC_QBUF, &buf) == -1) {
+	fprintf(stderr, "Failed requeuing buffer.\n");
 	return (-1);
     }
 
@@ -450,10 +490,33 @@ main(int argc, char *argv[])
     if ((r = init_stream(fd, buffer_count)) == -1)
 	goto cleanup;
 
-    if ((r = stop_stream(fd)) == -1)
-	goto cleanup;
+    for (;;) {
+	fd_set fds;
+	FD_ZERO(&fds);
+	FD_SET(fd, &fds);
+
+	struct timeval timeout;
+	timeout.tv_sec = 1;
+	timeout.tv_usec = 0;
+
+	r = select(fd + 1, &fds, NULL, NULL, &timeout);
+
+	if (r == -1) {
+	    fprintf(stderr, "Error on select. %d: %s\n", errno, strerror(errno));
+	    break;
+	} else if (r == 0) {
+	    fprintf(stderr, "Timeout on select.\n");
+	    break;
+	}
+
+	if (query_frame(fd, buffer_count, buffers) == -1)
+	    break;
+
+	break;
+    }
 
 cleanup:
+    stop_stream(fd);
     unmap_buffers(buffer_count, buffers);
     free(buffers);
 
