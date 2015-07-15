@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stddef.h>
 #include <limits.h>
 #include <unistd.h>
 #include <string.h>
@@ -11,97 +12,15 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#include <linux/types.h>
 #include <linux/videodev2.h>
+
+#include <chiasm.h>
 
 #define CH_DEFAULT_DEVICE "/dev/video0"
 
 bool verbose = false;
 bool list = false;
-
-/**
- * Print out contents of a struct v4l2_capability.
- */
-void
-print_v4l2_capability(struct v4l2_capability *caps)
-{
-    printf(
-	"Driver/Hardware Capabilities:\n"
-	"      Driver: %s\n"
-	"        Card: %s\n"
-	"    Bus Info: %s\n"
-	"     Version: %u.%u.%u\n"
-	"  Cap. Flags: %08X\n",
-	caps->driver,
-	caps->card,
-	caps->bus_info,
-	(caps->version >> 16) & 0xFF,
-	(caps->version >> 8) & 0xFF,
-	caps->version & 0xFF,
-	caps->capabilities
-    );
-
-    // caps->device_caps will only be set if the following test is true.
-    if (caps->capabilities & V4L2_CAP_DEVICE_CAPS)
-	printf("  Dev. Flags: %08X\n\n", caps->device_caps);
-    else
-	printf("\n");
-}
-
-/**
- * Print out contents of a struct v4l2_fmtdesc.
- */
-void
-print_v4l2_fmtdesc(struct v4l2_fmtdesc *fmtdesc)
-{
-    printf(
-	"Format %d: (%c%c) %s - %c%c%c%c\n",
-	fmtdesc->index,
-	(fmtdesc->flags & V4L2_FMT_FLAG_COMPRESSED) ? 'C' : '-',
-	(fmtdesc->flags & V4L2_FMT_FLAG_EMULATED) ? 'E' : '-',
-	fmtdesc->description,
-	fmtdesc->pixelformat & 0xFF,
-	(fmtdesc->pixelformat >> 8) & 0xFF,
-	(fmtdesc->pixelformat >> 16) & 0xFF,
-	(fmtdesc->pixelformat >> 24) & 0xFF
-    );
-}
-
-/**
- * Print out contents of a struct v4l2_frmsizeenum.
- */
-void
-print_v4l2_frmsizeenum(struct v4l2_frmsizeenum *frmsize)
-{
-    // Only support for discrete resolutions currently.
-    if (frmsize->type != V4L2_FRMSIZE_TYPE_DISCRETE)
-	printf("Unsupported framesize type.\n");
-
-
-    printf(
-	"  Framesize %d: %d x %d\n",
-	frmsize->index,
-	frmsize->discrete.width,
-	frmsize->discrete.height
-    );
-}
-
-/**
- * Print out contents of a struct v4l2_frmivalenum.
- */
-void
-print_v4l2_frmivalenum(struct v4l2_frmivalenum *frmival)
-{
-    // Only support for discrete framerates currently.
-    if (frmival->type != V4L2_FRMIVAL_TYPE_DISCRETE)
-	printf("Unsupported framerate type.\n");
-
-    printf(
-	"    Framerate %d: %d / %d\n",
-	frmival->index,
-	frmival->discrete.numerator,
-	frmival->discrete.denominator
-    );
-}
 
 /**
  * Wrapper around ioctl() to print out error message upon failure.
@@ -152,78 +71,98 @@ query_caps(int fd)
  * Query available formats for a device.
  */
 int
-list_fmts(int fd)
+query_fmts(int fd, __u32 pixelformat, __u32 frame_width, __u32 frame_height)
 {
+    bool valid = false;
     struct v4l2_fmtdesc fmtdesc;
 
     fmtdesc.index = 0;
     fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
     while (ioctl_r(fd, VIDIOC_ENUM_FMT, &fmtdesc) == 0) {
-	print_v4l2_fmtdesc(&fmtdesc);
-
+	bool check_fmt = false;
 	struct v4l2_frmsizeenum frmsize;
+	char pixfmt_buf[5];
+	pixfmt_to_string(fmtdesc.pixelformat, pixfmt_buf);
 
 	frmsize.index = 0;
 	frmsize.pixel_format = fmtdesc.pixelformat;
 
+	if (list)
+	    printf("Format %s: ", pixfmt_buf);
+	else if (pixelformat == fmtdesc.pixelformat)
+	    check_fmt = true;
+
 	while (ioctl_r(fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0) {
-	    print_v4l2_frmsizeenum(&frmsize);
 
 	    // Only supporting discrete resolutions currently.
 	    if (frmsize.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
-		struct v4l2_frmivalenum frmival;
+		if (list) {
+		    struct v4l2_frmivalenum frmival;
 
-		// Print out maximum framerate for each resolution.
-		frmival.index = 0;
-		frmival.pixel_format = fmtdesc.pixelformat;
-		frmival.width = frmsize.discrete.width;
-		frmival.height = frmsize.discrete.height;
+		    // Print out maximum framerate for each resolution.
+		    frmival.index = 0;
+		    frmival.pixel_format = fmtdesc.pixelformat;
+		    frmival.width = frmsize.discrete.width;
+		    frmival.height = frmsize.discrete.height;
 
-		if (ioctl_r(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) != -1)
-		    print_v4l2_frmivalenum(&frmival);
+		    if (ioctl_r(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) != -1)
+			printf(
+			    "%ux%u(%u/%u fps), ",
+			    frmsize.discrete.width,
+			    frmsize.discrete.height,
+			    frmival.discrete.numerator,
+			    frmival.discrete.denominator
+		        );
+
+		} else if (check_fmt) {
+		    if (frame_width == frmsize.discrete.width
+			&& frame_height == frmsize.discrete.height) {
+			valid = true;
+			return (0);
+		    }
+		}
 	    }
+
+	    if (valid)
+		break;
 
 	    frmsize.index++;
 	}
 
+	if (check_fmt && !valid) {
+	    fprintf(stderr, "%ux%u is invalid geometry for format %s.\n",
+		    frame_width, frame_height, pixfmt_buf);
+	    return (-1);
+	}
+
+	if (list)
+	    printf("\n");
+
 	fmtdesc.index++;
     }
 
-    return (0);
+    if (!valid && !list) {
+	char in_pixfmt_buf[5];
+	pixfmt_to_string(pixelformat, in_pixfmt_buf);
+	fprintf(stderr, "Invalid format %s.\n", in_pixfmt_buf);
+    }
+
+    return ((list && !valid) ? -1 : 0);
 }
 
 /**
  * Initialize device state.
  */
 int
-init_device(int fd, int format_idx, int resolution_idx)
+init_device(int fd, __u32 pixel_format, __u32 frame_width, __u32 frame_height)
 {
-    struct v4l2_fmtdesc fmtdesc;
-    struct v4l2_frmsizeenum frmsize;
-
-    fmtdesc.index = format_idx;
-    fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-
-    if (ioctl_r(fd, VIDIOC_ENUM_FMT, &fmtdesc) == -1) {
-	fprintf(stderr, "Invalid format index %d.\n", format_idx);
-	return (-1);
-    }
-
-    frmsize.index = resolution_idx;
-    frmsize.pixel_format = fmtdesc.pixelformat;
-
-    if (ioctl_r(fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == -1) {
-	fprintf(stderr, "Invalid framesize index %d.\n", resolution_idx);
-	return (-1);
-    }
-
     struct v4l2_format format;
 
     format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    format.fmt.pix.width = frmsize.discrete.width;
-    format.fmt.pix.height = frmsize.discrete.height;
-    format.fmt.pix.pixelformat = fmtdesc.pixelformat;
+    format.fmt.pix.width = frame_width;
+    format.fmt.pix.height = frame_height;
+    format.fmt.pix.pixelformat = pixel_format;
     format.fmt.pix.field = V4L2_FIELD_ANY;
     format.fmt.pix.bytesperline = 0;
 
@@ -306,9 +245,9 @@ main(int argc, char *argv[])
 {
     int fd;
     char *video_device = CH_DEFAULT_DEVICE;
-
-    int format_idx = -1;
-    int resolution_idx = -1;
+    __u32 pixel_format = string_to_pixfmt("YUYV");
+    __u32 frame_width = 320;
+    __u32 frame_height = 240;
 
     int opt;
     char *opts = "d:f:r:s:lvh?";
@@ -324,15 +263,18 @@ main(int argc, char *argv[])
 	    list = true;
 	    break;
 	case 'f':
-	    format_idx = parse_uint(optarg);
-	    if (format_idx < 0)
+	    if (strnlen(optarg, 5) != 4) {
+		fprintf(stderr, "Pixel formats must be 4 characters in length.\n");
 		return (-1);
+	    }
 
+	    pixel_format = string_to_pixfmt(optarg);
 	    break;
 	case 'r':
-	    resolution_idx = parse_uint(optarg);
-	    if (resolution_idx < 0)
+	    if (sscanf(optarg, "%ux%u", &frame_width, &frame_height) != 2) {
+		fprintf(stderr, "Error parsing geometry string.\n");
 		return (-1);
+	    }
 
 	    break;
 	case 'h':
@@ -363,17 +305,10 @@ main(int argc, char *argv[])
     if (query_caps(fd) == -1)
 	goto cleanup;
 
-    if (list) {
-	list_fmts(fd);
+    if (query_fmts(fd, pixel_format, frame_width, frame_height) == -1)
 	goto cleanup;
-    }
 
-    if (format_idx == -1 || resolution_idx == -1) {
-	fprintf(stderr, "Must specify output format and resolution.\n");
-	goto cleanup;
-    }
-
-    if (init_device(fd, format_idx, resolution_idx) == -1)
+    if (init_device(fd, pixel_format, frame_width, frame_height) == -1)
 	goto cleanup;
 
 cleanup:
