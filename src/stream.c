@@ -18,6 +18,9 @@
 #include <chiasm.h>
 
 #define CH_DEFAULT_DEVICE "/dev/video0"
+#define CH_DEFAULT_FORMAT "YUYV"
+#define CH_DEFAULT_WIDTH  320
+#define CH_DEFAULT_HEIGHT 240
 
 bool verbose = false;
 bool list = false;
@@ -68,33 +71,34 @@ query_caps(int fd)
 }
 
 /**
- * Query available formats for a device.
+ * Query available formats for a device. Validate user specified
+ * format and resolution.
  */
 int
 query_fmts(int fd, __u32 pixelformat, __u32 frame_width, __u32 frame_height)
 {
-    bool valid = false;
     struct v4l2_fmtdesc fmtdesc;
 
     fmtdesc.index = 0;
     fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
     while (ioctl_r(fd, VIDIOC_ENUM_FMT, &fmtdesc) == 0) {
-	bool check_fmt = false;
-	struct v4l2_frmsizeenum frmsize;
 	char pixfmt_buf[5];
 	pixfmt_to_string(fmtdesc.pixelformat, pixfmt_buf);
+
+	struct v4l2_frmsizeenum frmsize;
 
 	frmsize.index = 0;
 	frmsize.pixel_format = fmtdesc.pixelformat;
 
+	bool check_fmt = false;
 	if (list)
-	    printf("Format %s: ", pixfmt_buf);
+	    printf("Format %s:", pixfmt_buf);
+
 	else if (pixelformat == fmtdesc.pixelformat)
 	    check_fmt = true;
 
 	while (ioctl_r(fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0) {
-
 	    // Only supporting discrete resolutions currently.
 	    if (frmsize.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
 		if (list) {
@@ -107,32 +111,28 @@ query_fmts(int fd, __u32 pixelformat, __u32 frame_width, __u32 frame_height)
 		    frmival.height = frmsize.discrete.height;
 
 		    if (ioctl_r(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) != -1)
-			printf(
-			    "%ux%u(%u/%u fps), ",
-			    frmsize.discrete.width,
-			    frmsize.discrete.height,
-			    frmival.discrete.numerator,
-			    frmival.discrete.denominator
-		        );
+			if (frmival.type == V4L2_FRMIVAL_TYPE_DISCRETE)
+			    printf(
+				" %ux%u(%u/%u fps)",
+				frmsize.discrete.width,
+				frmsize.discrete.height,
+				frmival.discrete.numerator,
+				frmival.discrete.denominator
+			    );
 
-		} else if (check_fmt) {
+		} else if (check_fmt)
 		    if (frame_width == frmsize.discrete.width
-			&& frame_height == frmsize.discrete.height) {
-			valid = true;
+			&& frame_height == frmsize.discrete.height)
 			return (0);
-		    }
-		}
 	    }
-
-	    if (valid)
-		break;
 
 	    frmsize.index++;
 	}
 
-	if (check_fmt && !valid) {
+	if (check_fmt) {
 	    fprintf(stderr, "%ux%u is invalid geometry for format %s.\n",
 		    frame_width, frame_height, pixfmt_buf);
+
 	    return (-1);
 	}
 
@@ -142,13 +142,15 @@ query_fmts(int fd, __u32 pixelformat, __u32 frame_width, __u32 frame_height)
 	fmtdesc.index++;
     }
 
-    if (!valid && !list) {
+    if (!list) {
 	char in_pixfmt_buf[5];
 	pixfmt_to_string(pixelformat, in_pixfmt_buf);
 	fprintf(stderr, "Invalid format %s.\n", in_pixfmt_buf);
+
+	return (-1);
     }
 
-    return ((list && !valid) ? -1 : 0);
+    return (0);
 }
 
 /**
@@ -170,6 +172,19 @@ init_device(int fd, __u32 pixel_format, __u32 frame_width, __u32 frame_height)
 	fprintf(stderr, "Could not set output format.\n");
 	return (-1);
     }
+
+    return (0);
+}
+
+/**
+ * Initialize memory-mapped region for streaming video.
+ */
+int
+init_mmap(int fd)
+{
+    struct v4l2_requestbuffers req;
+
+
 
     return (0);
 }
@@ -223,34 +238,16 @@ close_device(int fd)
 }
 
 int
-parse_uint(char *s)
-{
-    long tmp = strtol(s, NULL, 10);
-
-    if (errno == EINVAL) {
-	fprintf(stderr, "Invalid value in %s.\n", s);
-	return (-1);
-    }
-
-    if (tmp < 0 || tmp > INT_MAX) {
-	fprintf(stderr, "Value of %s out of range.\n", s);
-	return (-1);
-    }
-
-    return ((int) tmp);
-}
-
-int
 main(int argc, char *argv[])
 {
     int fd;
     char *video_device = CH_DEFAULT_DEVICE;
-    __u32 pixel_format = string_to_pixfmt("YUYV");
-    __u32 frame_width = 320;
-    __u32 frame_height = 240;
+    __u32 pixel_format = string_to_pixfmt(CH_DEFAULT_FORMAT);
+    __u32 frame_width  = CH_DEFAULT_WIDTH;
+    __u32 frame_height = CH_DEFAULT_HEIGHT;
 
     int opt;
-    char *opts = "d:f:r:s:lvh?";
+    char *opts = "d:f:g:s:lvh?";
     while ((opt = getopt(argc, argv, opts)) != -1) {
 	switch (opt) {
 	case 'd':
@@ -270,7 +267,7 @@ main(int argc, char *argv[])
 
 	    pixel_format = string_to_pixfmt(optarg);
 	    break;
-	case 'r':
+	case 'g':
 	    if (sscanf(optarg, "%ux%u", &frame_width, &frame_height) != 2) {
 		fprintf(stderr, "Error parsing geometry string.\n");
 		return (-1);
@@ -281,39 +278,48 @@ main(int argc, char *argv[])
 	case '?':
 	default:
 	    printf(
-		"Usage: %s [%s]\n"
+		"Usage: %s [OPTIONS]\n"
 		"Stream video device to ach channel.\n"
 		"Options:\n"
 		"  -d    Device name. \"%s\" by default.\n"
-		"  -f    Index of image format to use.\n"
-		"  -r    Index of image resolution to use.\n"
+		"  -f    4-character image format code. %s by default.\n"
+		"  -g    Frame geometry in <w>x<h> format. %ux%u by default.\n"
 		"  -l    List formats, resolutions, framerates and exit.\n"
 		"  -v    Enable verbose output.\n"
 		"  -?,h  Show this help.\n",
 		argv[0],
-		opts,
-		CH_DEFAULT_DEVICE
+		CH_DEFAULT_DEVICE,
+		CH_DEFAULT_FORMAT,
+		CH_DEFAULT_WIDTH,
+		CH_DEFAULT_HEIGHT
 	    );
 	    break;
 	}
     }
 
-    if ((fd = open_device(video_device)) == -1) {
-	return (-1);
-    }
+    int r = 0;
 
-    if (query_caps(fd) == -1)
+    if ((r = (fd = open_device(video_device))) == -1)
 	goto cleanup;
 
-    if (query_fmts(fd, pixel_format, frame_width, frame_height) == -1)
+    if ((r = query_caps(fd)) == -1)
 	goto cleanup;
 
-    if (init_device(fd, pixel_format, frame_width, frame_height) == -1)
+    if ((r = query_fmts(fd, pixel_format, frame_width, frame_height)) == -1)
+	goto cleanup;
+
+    if (list)
+	goto cleanup;
+
+    if ((r = init_device(fd, pixel_format, frame_width, frame_height)) == -1)
+	goto cleanup;
+
+    if ((r = init_mmap(fd)) == -1)
 	goto cleanup;
 
 cleanup:
     if (fd > 0)
 	close_device(fd);
 
-    return (0);
+    return (r);
 }
