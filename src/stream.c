@@ -206,17 +206,20 @@ init_mmap(int fd, __u32 buffer_count, struct ch_buf *buffers)
     req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     req.memory = V4L2_MEMORY_MMAP;
 
+    // Request a number of buffers.
     if (ioctl_r(fd, VIDIOC_REQBUFS, &req) == -1) {
 	fprintf(stderr, "Failed to request buffers.\n");
 	return (-1);
     }
 
+    // Compare return to requested amount of buffers.
     if (req.count != buffer_count) {
 	fprintf(stderr, "Insufficient buffer memory on device (%u vs. %u).\n",
 		buffer_count, req.count);
 	return (-1);
     }
 
+    // Query each buffer and map it into our address space.
     size_t idx;
     for (idx = 0; idx < buffer_count; idx++) {
 	struct v4l2_buffer buf;
@@ -248,6 +251,50 @@ init_mmap(int fd, __u32 buffer_count, struct ch_buf *buffers)
 
 	    return (-1);
 	}
+    }
+
+    return (0);
+}
+
+/**
+ * Initialize streaming of the device.
+ */
+int
+init_stream(int fd, __u32 buffer_count)
+{
+    size_t idx;
+    for (idx = 0; idx < buffer_count; idx++) {
+	struct v4l2_buffer buf;
+
+	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	buf.memory = V4L2_MEMORY_MMAP;
+	buf.index = idx;
+
+	// Query each buffer to be filled.
+	if (ioctl_r(fd, VIDIOC_QBUF, &buf) == -1) {
+	    fprintf(stderr, "Failed to request buffer.\n");
+	    return (-1);
+	}
+    }
+
+    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+    if (ioctl_r(fd, VIDIOC_STREAMON, &type) == -1) {
+	fprintf(stderr, "Failed to start stream.\n");
+	return (-1);
+    }
+
+    return (0);
+}
+
+int
+stop_stream(int fd)
+{
+    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+    if (ioctl_r(fd, VIDIOC_STREAMOFF, &type) == -1) {
+	fprintf(stderr, "Failed to stop stream.\n");
+	return (-1);
     }
 
     return (0);
@@ -398,6 +445,12 @@ main(int argc, char *argv[])
 	goto cleanup;
 
     if ((r = init_mmap(fd, buffer_count, buffers)) == -1)
+	goto cleanup;
+
+    if ((r = init_stream(fd, buffer_count)) == -1)
+	goto cleanup;
+
+    if ((r = stop_stream(fd)) == -1)
 	goto cleanup;
 
 cleanup:
