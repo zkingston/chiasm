@@ -20,11 +20,18 @@
 
 #include <chiasm.h>
 
-#define CH_DEFAULT_DEVICE "/dev/video0"
-#define CH_DEFAULT_FORMAT "YUYV"
-#define CH_DEFAULT_WIDTH  320
-#define CH_DEFAULT_HEIGHT 240
-#define CH_DEFAULT_BUFNUM 5
+#define CH_DEFAULT_DEVICE    "/dev/video0"
+#define CH_DEFAULT_FORMAT    "YUYV"
+#define CH_DEFAULT_WIDTH     320
+#define CH_DEFAULT_HEIGHT    240
+#define CH_DEFAULT_BUFNUM    5
+#define CH_DEFAULT_TIMEOUT   2.0
+#define CH_DEFAULT_NUMFRAMES 0
+
+struct ch_buf {
+    void *start;
+    __u32 length;
+};
 
 bool list = false;
 
@@ -73,6 +80,19 @@ string_to_pixfmt(char *buf)
 }
 
 /**
+ * Converts a number of seconds into a struct timeval.
+ */
+struct timeval
+seconds_to_timeval(double seconds)
+{
+    struct timeval ret;
+    ret.tv_sec = (long) seconds;
+    ret.tv_usec = (long) ((seconds - (double) ret.tv_sec) * 1000000);
+
+    return (ret);
+}
+
+/**
  * Query the capabilities of a device, verify support.
  */
 int
@@ -110,15 +130,12 @@ query_fmts(int fd, __u32 pixelformat, __u32 frame_width, __u32 frame_height)
     fmtdesc.index = 0;
     fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
+    // Iterate until device returns no more.
     while (ioctl_r(fd, VIDIOC_ENUM_FMT, &fmtdesc) == 0) {
 	char pixfmt_buf[5];
 	pixfmt_to_string(fmtdesc.pixelformat, pixfmt_buf);
 
-	struct v4l2_frmsizeenum frmsize;
-
-	frmsize.index = 0;
-	frmsize.pixel_format = fmtdesc.pixelformat;
-
+	// Either print out information or check for available geometry.
 	bool check_fmt = false;
 	if (list)
 	    printf("Format %s:", pixfmt_buf);
@@ -126,18 +143,24 @@ query_fmts(int fd, __u32 pixelformat, __u32 frame_width, __u32 frame_height)
 	else if (pixelformat == fmtdesc.pixelformat)
 	    check_fmt = true;
 
+	struct v4l2_frmsizeenum frmsize;
+
+	frmsize.index = 0;
+	frmsize.pixel_format = fmtdesc.pixelformat;
+
+	// Iterate over framesizes for the current format until no more.
 	while (ioctl_r(fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0) {
 	    // Only supporting discrete resolutions currently.
 	    if (frmsize.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
 		if (list) {
 		    struct v4l2_frmivalenum frmival;
 
-		    // Print out maximum framerate for each resolution.
 		    frmival.index = 0;
 		    frmival.pixel_format = fmtdesc.pixelformat;
 		    frmival.width = frmsize.discrete.width;
 		    frmival.height = frmsize.discrete.height;
 
+		    // Grab only the first frameinterval. Should be the highest.
 		    if (ioctl_r(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) != -1)
 			if (frmival.type == V4L2_FRMIVAL_TYPE_DISCRETE)
 			    printf(
@@ -149,6 +172,7 @@ query_fmts(int fd, __u32 pixelformat, __u32 frame_width, __u32 frame_height)
 			    );
 
 		} else if (check_fmt)
+		    // If geometry for format is valid, return out.
 		    if (frame_width == frmsize.discrete.width
 			&& frame_height == frmsize.discrete.height)
 			return (0);
@@ -157,6 +181,7 @@ query_fmts(int fd, __u32 pixelformat, __u32 frame_width, __u32 frame_height)
 	    frmsize.index++;
 	}
 
+	// If geometry was found, return error.
 	if (check_fmt) {
 	    fprintf(stderr, "%ux%u is invalid geometry for format %s.\n",
 		    frame_width, frame_height, pixfmt_buf);
@@ -170,6 +195,7 @@ query_fmts(int fd, __u32 pixelformat, __u32 frame_width, __u32 frame_height)
 	fmtdesc.index++;
     }
 
+    // If format was found, return error.
     if (!list) {
 	char in_pixfmt_buf[5];
 	pixfmt_to_string(pixelformat, in_pixfmt_buf);
@@ -204,6 +230,9 @@ init_device(int fd, __u32 pixel_format, __u32 frame_width, __u32 frame_height)
     return (0);
 }
 
+/**
+ * Unmap mmap-ed buffers.
+ */
 int
 unmap_buffers(__u32 buffer_count, struct ch_buf *buffers)
 {
@@ -343,19 +372,23 @@ query_frame(int fd, __u32 buffer_count, struct ch_buf *buffers)
     buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     buf.memory = V4L2_MEMORY_MMAP;
 
+    // Deque buffer from device.
     if (ioctl_r(fd, VIDIOC_DQBUF, &buf) == -1) {
 	fprintf(stderr, "Failure dequeuing buffer.\n");
 	return (-1);
     }
 
+    // Verify buffer is valid.
     if (buf.index > buffer_count) {
 	fprintf(stderr, "Bad buffer index returned from deque.\n");
 	return (-1);
     }
 
+    // Output image.
     fwrite(buffers[buf.index].start, buf.bytesused, 1, stdout);
     fflush(stdout);
 
+    // Requeue buffer.
     if (ioctl_r(fd, VIDIOC_QBUF, &buf) == -1) {
 	fprintf(stderr, "Failed requeuing buffer.\n");
 	return (-1);
@@ -388,7 +421,7 @@ open_device(char *video_device)
     int fd;
 
     // Open device in read/write non-blocking mode.
-    if ((fd = open(video_device, O_RDWR | O_NONBLOCK )) == -1) {
+    if ((fd = open(video_device, O_RDWR | O_NONBLOCK)) == -1) {
 	fprintf(stderr, "Failed to open device. %d: %s\n",
 		errno, strerror(errno));
 	return (-1);
@@ -415,15 +448,16 @@ close_device(int fd)
 int
 main(int argc, char *argv[])
 {
-    int fd;
     char *video_device = CH_DEFAULT_DEVICE;
     __u32 pixel_format = string_to_pixfmt(CH_DEFAULT_FORMAT);
     __u32 frame_width  = CH_DEFAULT_WIDTH;
     __u32 frame_height = CH_DEFAULT_HEIGHT;
     __u32 buffer_count = CH_DEFAULT_BUFNUM;
+    size_t num_frames  = CH_DEFAULT_NUMFRAMES;
+    struct timeval timeout = seconds_to_timeval(CH_DEFAULT_TIMEOUT);
 
     int opt;
-    char *opts = "b:d:f:g:s:lh?";
+    char *opts = "n:t:b:d:f:g:s:lh?";
     while ((opt = getopt(argc, argv, opts)) != -1) {
 	switch (opt) {
 	case 'd':
@@ -432,6 +466,26 @@ main(int argc, char *argv[])
 	case 'l':
 	    list = true;
 	    break;
+	case 'n':
+	    num_frames = strtoul(optarg, NULL, 10);
+	    if (errno == EINVAL || errno == ERANGE) {
+		fprintf(stderr, "Invalid number of frames %s.\n", optarg);
+		return (-1);
+	    }
+
+	    break;
+	case 't': {
+	    char *ptr;
+	    double r = strtod(optarg, &ptr);
+
+	    if (r == 0 && ptr == optarg) {
+		fprintf(stderr, "Invalid timeout.\n");
+		return (-1);
+	    }
+
+	    timeout = seconds_to_timeval(r);
+	    break;
+	}
 	case 'b':
 	    buffer_count = (__u32) strtoul(optarg, NULL, 10);
 	    if (errno == EINVAL || errno == ERANGE || buffer_count == 0) {
@@ -463,31 +517,36 @@ main(int argc, char *argv[])
 		"Usage: %s [OPTIONS]\n"
 		"Stream video device to ach channel.\n"
 		"Options:\n"
-		"  -d    Device name. \"%s\" by default.\n"
-		"  -f    4-character image format code. %s by default.\n"
-		"  -g    Frame geometry in <w>x<h> format. %ux%u by default.\n"
-		"  -b    Specify number of buffers to request. %u by default.\n"
-		"  -l    List formats, resolutions, framerates and exit.\n"
-		"  -?,h  Show this help.\n",
+		" -d    Device name. \"%s\" by default.\n"
+		" -f    4-character image format code. %s by default.\n"
+		" -g    Frame geometry in <w>x<h> format. %ux%u by default.\n"
+		" -b    Specify number of buffers to request. %u by default.\n"
+		" -t    Timeout in seconds. %f by default.\n"
+		" -n    Number of frames to read. Infinite if 0. %d by default.\n"
+		" -l    List formats, resolutions, framerates and exit.\n"
+		" -?,h  Show this help.\n",
 		argv[0],
 		CH_DEFAULT_DEVICE,
 		CH_DEFAULT_FORMAT,
 		CH_DEFAULT_WIDTH,
 		CH_DEFAULT_HEIGHT,
-		CH_DEFAULT_BUFNUM
+		CH_DEFAULT_BUFNUM,
+		CH_DEFAULT_TIMEOUT,
+		CH_DEFAULT_NUMFRAMES
 	    );
 
 	    return (0);
 	}
     }
 
+    int r = 0;
+    int fd;
+    bool stream = false;
     struct ch_buf *buffers = calloc(buffer_count, sizeof(struct ch_buf));
     if (buffers == NULL || errno == ENOMEM) {
 	fprintf(stderr, "No memory available.\n");
 	return (-1);
     }
-
-    int r = 0;
 
     if ((r = (fd = open_device(video_device))) == -1)
 	goto cleanup;
@@ -510,16 +569,17 @@ main(int argc, char *argv[])
     if ((r = init_stream(fd, buffer_count)) == -1)
 	goto cleanup;
 
-    for (;;) {
+    stream = true;
+
+    // Only grab as many frames as desired.
+    size_t n;
+    for (n = 0; (num_frames != 0) ? n < num_frames : 1; n++) {
 	fd_set fds;
 	FD_ZERO(&fds);
 	FD_SET(fd, &fds);
 
-	struct timeval timeout;
-	timeout.tv_sec = 1;
-	timeout.tv_usec = 0;
-
-	r = select(fd + 1, &fds, NULL, NULL, &timeout);
+	struct timeval temp = timeout;
+	r = select(fd + 1, &fds, NULL, NULL, &temp);
 
 	if (r == -1) {
 	    fprintf(stderr, "Error on select. %d: %s\n", errno, strerror(errno));
@@ -529,20 +589,19 @@ main(int argc, char *argv[])
 	    break;
 	}
 
-	if (query_frame(fd, buffer_count, buffers) == -1)
+	if ((r = query_frame(fd, buffer_count, buffers)) == -1)
 	    break;
-
-	break;
     }
 
 cleanup:
-    stop_stream(fd);
+    if (stream)
+	stop_stream(fd);
+
     unmap_buffers(buffer_count, buffers);
     free(buffers);
 
     if (fd > 0)
 	close_device(fd);
-
 
     return (r);
 }
