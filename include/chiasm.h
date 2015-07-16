@@ -63,6 +63,15 @@ struct ch_device {
 void ch_YUYV_to_RGB(struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb);
 
 /**
+ * @brief Convert an MJPG format image into a simple RGB array.
+ *
+ * @param mjpg MJPG format image to convert.
+ * @param rgb Output image.
+ * @return None.
+ */
+void ch_MJPG_to_RGB(struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb);
+
+/**
  * @brief Converts a pixelformat character code to a null-terminated string.
  *
  * @param pixfmt Pixel format character code.

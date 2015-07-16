@@ -585,6 +585,9 @@ ch_stream(struct ch_device *device, uint32_t num_frames,
 	case V4L2_PIX_FMT_YUYV:
 	    ch_YUYV_to_RGB(&device->in_buffers[buf.index], &device->out_buffer);
 	    break;
+	case V4L2_PIX_FMT_MJPEG:
+	    ch_MJPG_to_RGB(&device->in_buffers[buf.index], &device->out_buffer);
+	    break;
 	default:
 	    fprintf(stderr, "Image format not supported for callbacks.\n");
 	    r = -1;

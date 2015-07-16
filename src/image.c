@@ -1,4 +1,9 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdio.h>
+
+#include <jpeglib.h>
 
 #include <chiasm.h>
 
@@ -42,4 +47,41 @@ ch_YUYV_to_RGB(struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb)
 	rgb->start[idx / 2 * 3 + 1] = ch_byte_clamp(G);
 	rgb->start[idx / 2 * 3 + 2] = ch_byte_clamp(B);
     }
+}
+
+// TODO: Fix.
+void
+ch_MJPG_to_RGB(struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
+{
+    struct jpeg_decompress_struct cinfo;
+    struct jpeg_error_mgr jerr;
+
+    cinfo.err = jpeg_std_error(&jerr);
+
+    FILE *jsrc = fmemopen(mjpg->start, mjpg->length, "rb");
+
+    jpeg_create_decompress(&cinfo);
+    jpeg_stdio_src(&cinfo, jsrc);
+    jpeg_read_header(&cinfo, TRUE);
+    jpeg_start_decompress(&cinfo);
+
+    JSAMPARRAY buffer;
+    int row_stride;
+
+    row_stride = cinfo.output_width * cinfo.output_components;
+    buffer = (*cinfo.mem->alloc_sarray)
+	((j_common_ptr) &cinfo, JPOOL_IMAGE, row_stride, 1);
+
+    size_t idx = 0;
+    while (cinfo.output_scanline < cinfo.output_height) {
+	jpeg_read_scanlines(&cinfo, buffer, 1);
+
+	memcpy(&rgb->start[idx], buffer[0], row_stride);
+	idx += row_stride;
+    }
+
+    jpeg_finish_decompress(&cinfo);
+    jpeg_destroy_decompress(&cinfo);
+
+    fclose(jsrc);
 }
