@@ -176,6 +176,6 @@ int ch_stop_stream(struct ch_device *device);
  * @param callback Function to callback on each new frame.
  */
 int ch_stream(struct ch_device *device, uint32_t num_frames,
-	      void (*callback)(struct ch_frmbuf *frm));
+	      int (*callback)(struct ch_frmbuf *frm));
 
 #endif

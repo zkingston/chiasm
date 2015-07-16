@@ -523,11 +523,25 @@ ch_stop_stream(struct ch_device *device)
 
 int
 ch_stream(struct ch_device *device, uint32_t num_frames,
-	  void (*callback)(struct ch_frmbuf *frm))
+	  int (*callback)(struct ch_frmbuf *frm))
 {
+    // Initialize stream if not already started.
     if (!device->stream)
 	ch_start_stream(device);
 
+    // Allocate output buffer.
+    device->out_buffer.length =
+	device->framesize.width * device->framesize.height;
+    device->out_buffer.start = ch_calloc(device->out_buffer.length,
+					 sizeof(uint8_t));
+    if (device->out_buffer.start == NULL) {
+	device->out_buffer.length = 0;
+	return (-1);
+    }
+
+    int r = 0;
+
+    // Iterate for number of frames requested.
     size_t n;
     for (n = 0; (num_frames != 0) ? n < num_frames : 1; n++) {
 	// Wait on select for a new frame.
@@ -536,16 +550,17 @@ ch_stream(struct ch_device *device, uint32_t num_frames,
 	FD_SET(device->fd, &fds);
 
 	struct timeval temp = device->timeout;
-	int r = select(device->fd + 1, &fds, NULL, NULL, &temp);
+	r = select(device->fd + 1, &fds, NULL, NULL, &temp);
 
 	if (r == -1) {
 	    fprintf(stderr, "Error on select. %d: %s\n",
 		    errno, strerror(errno));
-	    return (-1);
+	    break;
 
 	} else if (r == 0) {
 	    fprintf(stderr, "Timeout on select.\n");
-	    return (-1);
+	    r = -1;
+	    break;
 	}
 
 	// Dequeue buffer.
@@ -554,26 +569,42 @@ ch_stream(struct ch_device *device, uint32_t num_frames,
 	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	buf.memory = V4L2_MEMORY_MMAP;
 
-	if (ch_ioctl(device->fd, VIDIOC_DQBUF, &buf) == -1) {
+	if ((r = ch_ioctl(device->fd, VIDIOC_DQBUF, &buf)) == -1) {
 	    fprintf(stderr, "Failure dequeuing buffer.\n");
-	    return (-1);
+	    break;
 	}
 
 	// Verify buffer is valid.
 	if (buf.index > device->num_buffers) {
 	    fprintf(stderr, "Bad buffer index returned from deque.\n");
-	    return (-1);
+	    r = -1;
+	    break;
 	}
 
-	fprintf(stdout, ".");
-	fflush(stdout);
+	switch (device->pixelformat) {
+	case V4L2_PIX_FMT_YUYV:
+	    break;
+	default:
+	    fprintf(stderr, "Image format not supported for callbacks.\n");
+	    r = -1;
+	    goto exit;
+	}
+
+	// Callback.
+	if ((r = callback(&device->out_buffer)) == -1)
+	    break;
 
 	// Requeue buffer.
-	if (ch_ioctl(device->fd, VIDIOC_QBUF, &buf) == -1) {
+	if ((r = ch_ioctl(device->fd, VIDIOC_QBUF, &buf)) == -1) {
 	    fprintf(stderr, "Failed requeuing buffer.\n");
-	    return (-1);
+	    break;
 	}
     }
 
-    return (0);
+exit:
+    // Deallocate buffer.
+    free(device->out_buffer.start);
+    device->out_buffer.length = 0;
+
+    return (r);
 }

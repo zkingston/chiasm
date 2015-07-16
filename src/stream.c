@@ -21,28 +21,6 @@
 #include <chiasm.h>
 
 /**
- * Wrapper around ioctl() to print out error message upon failure.
- */
-static int
-ioctl_r(int fd, int request, void *arg)
-{
-    int r;
-
-    do {
-	r = ioctl(fd, request, arg);
-    } while (r == -1 && errno == EINTR);
-
-    if (r == -1) {
-	if (errno != EINVAL)
-	    fprintf(stderr, "ioctl failure. %d: %s\n", errno, strerror(errno));
-
-	return (-1);
-    }
-
-    return (0);
-}
-
-/**
  * Clamps a double to byte value.
  */
 static inline uint8_t
@@ -93,10 +71,12 @@ YUYV_to_RGB(struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb)
     return (0);
 }
 
-void
+int
 stream_callback(struct ch_frmbuf *frm)
 {
-
+    printf("\n");
+    fflush(stdout);
+    return (0);
 }
 
 static int
@@ -237,13 +217,13 @@ main(int argc, char *argv[])
 	goto cleanup;
     }
 
-    if (ch_set_fmt(&device) == -1)
+    if ((r = ch_set_fmt(&device)) == -1)
 	goto cleanup;
 
-    if (ch_init_stream(&device) == -1)
+    if ((r = ch_init_stream(&device)) == -1)
 	goto cleanup;
 
-    if (ch_stream(&device, num_frames, stream_callback) == -1)
+    if ((r = ch_stream(&device, num_frames, stream_callback)) == -1)
 	goto cleanup;
 
 cleanup:
