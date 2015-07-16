@@ -63,14 +63,7 @@ ch_calloc(size_t nmemb, size_t size)
     return (r);
 }
 
-/**
- * @brief Converts a pixelformat character code to a null-terminated string.
- *
- * @param pixfmt Pixel format character code.
- * @param buf Buffer to fill in. Must be 5 elements long.
- * @return None.
- */
-static inline void
+inline void
 ch_pixfmt_to_string(uint32_t pixfmt, char *buf)
 {
     size_t idx;
@@ -80,13 +73,7 @@ ch_pixfmt_to_string(uint32_t pixfmt, char *buf)
     buf[idx] = '\0';
 }
 
-/**
- * @brief Converts a string into a pixelformat character code.
- *
- * @param buf Buffer to convert.
- * @return Pixel format code from buffer.
- */
-static inline uint32_t
+inline uint32_t
 ch_string_to_pixfmt(char *buf)
 {
     uint32_t pixfmt = 0;
@@ -482,11 +469,42 @@ error:
 int
 ch_start_stream(struct ch_device *device)
 {
+    size_t idx;
+    for (idx = 0; idx < device->num_buffers; idx++) {
+	struct v4l2_buffer buf;
+
+	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	buf.memory = V4L2_MEMORY_MMAP;
+	buf.index = idx;
+
+	// Query each buffer to be filled.
+	if (ch_ioctl(device->fd, VIDIOC_QBUF, &buf) == -1) {
+	    fprintf(stderr, "Failed to request buffer.\n");
+	    return (-1);
+	}
+    }
+
+    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+    if (ch_ioctl(device->fd, VIDIOC_STREAMON, &type) == -1) {
+	fprintf(stderr, "Failed to start stream.\n");
+	return (-1);
+    }
+
+    device->stream = true;
     return (0);
 }
 
 int
 ch_stop_stream(struct ch_device *device)
 {
+    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+
+    if (ch_ioctl(device->fd, VIDIOC_STREAMOFF, &type) == -1) {
+	fprintf(stderr, "Failed to stop stream.\n");
+	return (-1);
+    }
+
+    device->stream = false;
     return (0);
 }

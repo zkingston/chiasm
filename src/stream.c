@@ -44,19 +44,6 @@ ioctl_r(int fd, int request, void *arg)
     return (0);
 }
 
-static void *
-calloc_r(size_t nmemb, size_t size)
-{
-    void *r = calloc(nmemb, size);
-
-    if (r == NULL || errno == ENOMEM) {
-	fprintf(stderr, "No memory available.\n");
-	return (NULL);
-    }
-
-    return (r);
-}
-
 /**
  * Clamps a double to byte value.
  */
@@ -64,34 +51,6 @@ static inline uint8_t
 byte_clamp(double v)
 {
     return (uint8_t) ((v > 255) ? 255 : ((v < 0) ? 0 : v));
-}
-
-/**
- * Converts a pixelformat code into a readable character buffer
- */
-static void
-pixfmt_to_string(uint32_t pixfmt, char *buf)
-{
-    size_t idx;
-    for (idx = 0; idx < 4; idx++)
-	buf[idx] = (pixfmt >> (8 * idx)) & 0xFF;
-
-    buf[idx] = '\0';
-}
-
-/**
- * Convert a pixel format string into the pixelformat code.
- */
-static uint32_t
-string_to_pixfmt(char *buf)
-{
-    uint32_t pixfmt = 0;
-
-    size_t idx;
-    for (idx = 0; idx < 4 && buf[idx] != '\0'; idx++)
-	pixfmt |= (buf[idx] << (8 * idx));
-
-    return (pixfmt);
 }
 
 /**
@@ -113,8 +72,8 @@ seconds_to_timeval(double seconds)
 static int
 YUYV_to_RGB(struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb)
 {
-    rgb->length = yuyv->length / 2 * 3;
-    rgb->start = calloc_r(rgb->length, sizeof(uint8_t));
+    // rgb->length = yuyv->length / 2 * 3;
+    // rgb->start = calloc_r(rgb->length, sizeof(uint8_t));
 
     if (rgb->start == NULL)
 	return (-1);
@@ -143,76 +102,6 @@ YUYV_to_RGB(struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb)
 	rgb->start[idx / 2 * 3 + 0] = byte_clamp(R);
 	rgb->start[idx / 2 * 3 + 1] = byte_clamp(G);
 	rgb->start[idx / 2 * 3 + 2] = byte_clamp(B);
-    }
-
-    return (0);
-}
-
-/**
- * Initialize device state.
- */
-int
-init_device(int fd, uint32_t pixel_format, uint32_t frame_width, uint32_t frame_height)
-{
-    struct v4l2_format format;
-
-    format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    format.fmt.pix.width = frame_width;
-    format.fmt.pix.height = frame_height;
-    format.fmt.pix.pixelformat = pixel_format;
-    format.fmt.pix.field = V4L2_FIELD_NONE;
-    format.fmt.pix.bytesperline = 0;
-
-    if (ioctl_r(fd, VIDIOC_S_FMT, &format) == -1) {
-	fprintf(stderr, "Could not set output format.\n");
-	return (-1);
-    }
-
-    return (0);
-}
-
-/**
- * Initialize streaming of the device.
- */
-int
-init_stream(int fd, uint32_t buffer_count)
-{
-    size_t idx;
-    for (idx = 0; idx < buffer_count; idx++) {
-	struct v4l2_buffer buf;
-
-	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	buf.memory = V4L2_MEMORY_MMAP;
-	buf.index = idx;
-
-	// Query each buffer to be filled.
-	if (ioctl_r(fd, VIDIOC_QBUF, &buf) == -1) {
-	    fprintf(stderr, "Failed to request buffer.\n");
-	    return (-1);
-	}
-    }
-
-    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-
-    if (ioctl_r(fd, VIDIOC_STREAMON, &type) == -1) {
-	fprintf(stderr, "Failed to start stream.\n");
-	return (-1);
-    }
-
-    return (0);
-}
-
-/**
- * Stop streaming from the device.
- */
-int
-stop_stream(int fd)
-{
-    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-
-    if (ioctl_r(fd, VIDIOC_STREAMOFF, &type) == -1) {
-	fprintf(stderr, "Failed to stop stream.\n");
-	return (-1);
     }
 
     return (0);
@@ -269,7 +158,7 @@ list_formats(struct ch_device *device)
     size_t idx;
     for (idx = 0; idx < fmts->length; idx++) {
 	char pixfmt_buf[5];
-	pixfmt_to_string(fmts->fmts[idx], pixfmt_buf);
+	ch_pixfmt_to_string(fmts->fmts[idx], pixfmt_buf);
 
 	printf("%s:", pixfmt_buf);
 
@@ -294,12 +183,11 @@ list_formats(struct ch_device *device)
     return (0);
 }
 
-
 int
 main(int argc, char *argv[])
 {
     char *video_device = CH_DEFAULT_DEVICE;
-    uint32_t pixel_format = string_to_pixfmt(CH_DEFAULT_FORMAT);
+    uint32_t pixel_format = ch_string_to_pixfmt(CH_DEFAULT_FORMAT);
     uint32_t frame_width  = CH_DEFAULT_WIDTH;
     uint32_t frame_height = CH_DEFAULT_HEIGHT;
     uint32_t buffer_count = CH_DEFAULT_BUFNUM;
@@ -351,7 +239,7 @@ main(int argc, char *argv[])
 		return (-1);
 	    }
 
-	    pixel_format = string_to_pixfmt(optarg);
+	    pixel_format = ch_string_to_pixfmt(optarg);
 	    break;
 	case 'g':
 	    if (sscanf(optarg, "%ux%u", &frame_width, &frame_height) != 2) {
@@ -391,7 +279,6 @@ main(int argc, char *argv[])
 
     int r = 0;
     int fd;
-    bool stream = false;
 
     struct ch_device device;
     ch_init_device(&device);
@@ -419,12 +306,10 @@ main(int argc, char *argv[])
     if (ch_init_stream(&device) == -1)
 	goto cleanup;
 
-    fd = device.fd;
-
-    if ((r = init_stream(fd, buffer_count)) == -1)
+    if (ch_start_stream(&device) == -1)
 	goto cleanup;
 
-    stream = true;
+    fd = device.fd;
 
     // Only grab as many frames as desired.
     size_t n;
@@ -449,9 +334,6 @@ main(int argc, char *argv[])
     }
 
 cleanup:
-    if (stream)
-	stop_stream(fd);
-
     ch_close_device(&device);
 
     return (r);

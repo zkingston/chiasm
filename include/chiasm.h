@@ -51,6 +51,23 @@ struct ch_device {
 };
 
 /**
+ * @brief Converts a pixelformat character code to a null-terminated string.
+ *
+ * @param pixfmt Pixel format character code.
+ * @param buf Buffer to fill in. Must be 5 elements long.
+ * @return None.
+ */
+inline void ch_pixfmt_to_string(uint32_t pixfmt, char *buf);
+
+/**
+ * @brief Converts a string into a pixelformat character code.
+ *
+ * @param buf Buffer to convert.
+ * @return Pixel format code from buffer.
+ */
+inline uint32_t ch_string_to_pixfmt(char *buf);
+
+/**
  * @brief Initialize a struct ch_device.
  *
  * @param device The struct to fill.
@@ -68,9 +85,9 @@ void ch_init_device(struct ch_device *device);
 int ch_open_device(struct ch_device *device);
 
 /**
- * @brief Closes an opened video device on file-descriptor fd.
+ * @brief Closes an opened video device.
  *
- * @param fd File-descriptor of device to close.
+ * @param device Device to close and clean up.
  * @return 0 upon success, -1 upon failure.
  */
 int ch_close_device(struct ch_device *device);
@@ -116,10 +133,28 @@ void ch_destroy_frmsizes(struct ch_frmsizes *frmsizes);
  */
 int ch_set_fmt(struct ch_device *device);
 
+/**
+ * @brief Initialize stream buffers.
+ *
+ * @param device Device to initialize.
+ * @return 0 on success, -1 on failure.
+ */
 int ch_init_stream(struct ch_device *device);
 
+/**
+ * @brief Begin streaming from device.
+ *
+ * @param device Device to begin streaming from.
+ * @return 0 on success, -1 on failure.
+ */
 int ch_start_stream(struct ch_device *device);
 
+/**
+ * @brief Stop streaming from a device.
+ *
+ * @param device Device to stop streaming from.
+ * @return 0 on succes, -1 on failure.
+ */
 int ch_stop_stream(struct ch_device *device);
 
 #endif
