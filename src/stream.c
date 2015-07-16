@@ -2,13 +2,13 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <limits.h>
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
 
 #include <sys/ioctl.h>
-#include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
 #include <sys/select.h>
@@ -29,8 +29,8 @@
 #define CH_DEFAULT_NUMFRAMES 0
 
 struct ch_buf {
-    void *start;
-    __u32 length;
+    uint8_t  *start;
+    uint32_t length;
 };
 
 bool list = false;
@@ -38,10 +38,16 @@ bool list = false;
 /**
  * Wrapper around ioctl() to print out error message upon failure.
  */
-int
+static int
 ioctl_r(int fd, int request, void *arg)
 {
-    if (ioctl(fd, request, arg) == -1) {
+    int r;
+
+    do {
+	r = ioctl(fd, request, arg);
+    } while (r == -1 && errno == EINTR);
+
+    if (r == -1) {
 	if (errno != EINVAL)
 	    fprintf(stderr, "ioctl failure. %d: %s\n", errno, strerror(errno));
 
@@ -51,11 +57,33 @@ ioctl_r(int fd, int request, void *arg)
     return (0);
 }
 
+static void *
+calloc_r(size_t nmemb, size_t size)
+{
+    void *r = calloc(nmemb, size);
+
+    if (r == NULL || errno == ENOMEM) {
+	fprintf(stderr, "No memory available.\n");
+	return (NULL);
+    }
+
+    return (r);
+}
+
+/**
+ * Clamps a double to byte value.
+ */
+static inline uint8_t
+byte_clamp(double v)
+{
+    return (uint8_t) ((v > 255) ? 255 : ((v < 0) ? 0 : v));
+}
+
 /**
  * Converts a pixelformat code into a readable character buffer
  */
-void
-pixfmt_to_string(__u32 pixfmt, char *buf)
+static void
+pixfmt_to_string(uint32_t pixfmt, char *buf)
 {
     size_t idx;
     for (idx = 0; idx < 4; idx++)
@@ -65,15 +93,15 @@ pixfmt_to_string(__u32 pixfmt, char *buf)
 }
 
 /**
- * Convert a 4-character string into the pixelformat code.
+ * Convert a pixel format string into the pixelformat code.
  */
-__u32
+static uint32_t
 string_to_pixfmt(char *buf)
 {
-    __u32 pixfmt = 0;
+    uint32_t pixfmt = 0;
 
     size_t idx;
-    for (idx = 0; idx < 4; idx++)
+    for (idx = 0; idx < 4 && buf[idx] != '\0'; idx++)
 	pixfmt |= (buf[idx] << (8 * idx));
 
     return (pixfmt);
@@ -90,6 +118,47 @@ seconds_to_timeval(double seconds)
     ret.tv_usec = (long) ((seconds - (double) ret.tv_sec) * 1000000);
 
     return (ret);
+}
+
+/**
+ * Converts a YUYV image into RGB.
+ */
+static int
+YUYV_to_RGB(struct ch_buf *yuyv, struct ch_buf *rgb)
+{
+    rgb->length = yuyv->length / 2 * 3;
+    rgb->start = calloc_r(rgb->length, sizeof(uint8_t));
+
+    if (rgb->start == NULL)
+	return (-1);
+
+    size_t idx;
+    for (idx = 0; idx < yuyv->length; idx += 2) {
+	int u_off = (idx % 4 == 0) ? 1 : -1;
+	int v_off = (idx % 4 == 2) ? 1 : -1;
+
+	uint8_t y = yuyv->start[idx];
+
+	uint8_t u = (idx + u_off > 0 && idx + u_off < yuyv->length)
+	    ? yuyv->start[idx + u_off] : 0x80;
+
+	uint8_t v = (idx + v_off > 0 && idx + v_off < yuyv->length)
+	    ? yuyv->start[idx + v_off] : 0x80;
+
+	double Y  = (255.0 / 219.0) * (y - 0x10);
+	double Cb = (255.0 / 224.0) * (u - 0x80);
+	double Cr = (255.0 / 224.0) * (v - 0x80);
+
+	double R = 1.000 * Y + 0.000 * Cb + 1.402 * Cr;
+	double G = 1.000 * Y + 0.344 * Cb - 0.714 * Cr;
+	double B = 1.000 * Y + 1.772 * Cb + 0.000 * Cr;
+
+	rgb->start[idx / 2 * 3 + 0] = byte_clamp(R);
+	rgb->start[idx / 2 * 3 + 1] = byte_clamp(G);
+	rgb->start[idx / 2 * 3 + 2] = byte_clamp(B);
+    }
+
+    return (0);
 }
 
 /**
@@ -123,7 +192,7 @@ query_caps(int fd)
  * format and resolution.
  */
 int
-query_fmts(int fd, __u32 pixelformat, __u32 frame_width, __u32 frame_height)
+query_fmts(int fd, uint32_t pixelformat, uint32_t frame_width, uint32_t frame_height)
 {
     struct v4l2_fmtdesc fmtdesc;
 
@@ -211,7 +280,7 @@ query_fmts(int fd, __u32 pixelformat, __u32 frame_width, __u32 frame_height)
  * Initialize device state.
  */
 int
-init_device(int fd, __u32 pixel_format, __u32 frame_width, __u32 frame_height)
+init_device(int fd, uint32_t pixel_format, uint32_t frame_width, uint32_t frame_height)
 {
     struct v4l2_format format;
 
@@ -219,7 +288,7 @@ init_device(int fd, __u32 pixel_format, __u32 frame_width, __u32 frame_height)
     format.fmt.pix.width = frame_width;
     format.fmt.pix.height = frame_height;
     format.fmt.pix.pixelformat = pixel_format;
-    format.fmt.pix.field = V4L2_FIELD_ANY;
+    format.fmt.pix.field = V4L2_FIELD_NONE;
     format.fmt.pix.bytesperline = 0;
 
     if (ioctl_r(fd, VIDIOC_S_FMT, &format) == -1) {
@@ -234,7 +303,7 @@ init_device(int fd, __u32 pixel_format, __u32 frame_width, __u32 frame_height)
  * Unmap mmap-ed buffers.
  */
 int
-unmap_buffers(__u32 buffer_count, struct ch_buf *buffers)
+unmap_buffers(uint32_t buffer_count, struct ch_buf *buffers)
 {
     size_t idx;
     for (idx = 0; idx < buffer_count; idx++) {
@@ -256,7 +325,7 @@ unmap_buffers(__u32 buffer_count, struct ch_buf *buffers)
  * Initialize memory-mapped region for streaming video.
  */
 int
-init_mmap(int fd, __u32 buffer_count, struct ch_buf *buffers)
+init_mmap(int fd, uint32_t buffer_count, struct ch_buf *buffers)
 {
     struct v4l2_requestbuffers req;
 
@@ -318,7 +387,7 @@ init_mmap(int fd, __u32 buffer_count, struct ch_buf *buffers)
  * Initialize streaming of the device.
  */
 int
-init_stream(int fd, __u32 buffer_count)
+init_stream(int fd, uint32_t buffer_count)
 {
     size_t idx;
     for (idx = 0; idx < buffer_count; idx++) {
@@ -365,7 +434,7 @@ stop_stream(int fd)
  * Read a frame from one of the buffers.
  */
 int
-query_frame(int fd, __u32 buffer_count, struct ch_buf *buffers)
+query_frame(int fd, uint32_t buffer_count, struct ch_buf *buffers)
 {
     struct v4l2_buffer buf;
 
@@ -385,7 +454,11 @@ query_frame(int fd, __u32 buffer_count, struct ch_buf *buffers)
     }
 
     // Output image.
-    fwrite(buffers[buf.index].start, buf.bytesused, 1, stdout);
+    struct ch_buf t;
+    YUYV_to_RGB(&buffers[buf.index], &t);
+
+    // fwrite(buffers[buf.index].start, buf.bytesused, 1, stdout);
+    fwrite(t.start, t.length, 1, stdout);
     fflush(stdout);
 
     // Requeue buffer.
@@ -449,10 +522,10 @@ int
 main(int argc, char *argv[])
 {
     char *video_device = CH_DEFAULT_DEVICE;
-    __u32 pixel_format = string_to_pixfmt(CH_DEFAULT_FORMAT);
-    __u32 frame_width  = CH_DEFAULT_WIDTH;
-    __u32 frame_height = CH_DEFAULT_HEIGHT;
-    __u32 buffer_count = CH_DEFAULT_BUFNUM;
+    uint32_t pixel_format = string_to_pixfmt(CH_DEFAULT_FORMAT);
+    uint32_t frame_width  = CH_DEFAULT_WIDTH;
+    uint32_t frame_height = CH_DEFAULT_HEIGHT;
+    uint32_t buffer_count = CH_DEFAULT_BUFNUM;
     size_t num_frames  = CH_DEFAULT_NUMFRAMES;
     struct timeval timeout = seconds_to_timeval(CH_DEFAULT_TIMEOUT);
 
@@ -487,7 +560,7 @@ main(int argc, char *argv[])
 	    break;
 	}
 	case 'b':
-	    buffer_count = (__u32) strtoul(optarg, NULL, 10);
+	    buffer_count = (uint32_t) strtoul(optarg, NULL, 10);
 	    if (errno == EINVAL || errno == ERANGE || buffer_count == 0) {
 		fprintf(stderr, "Invalid value in buffer count argument %s.\n",
 			optarg);
@@ -496,8 +569,8 @@ main(int argc, char *argv[])
 
 	    break;
 	case 'f':
-	    if (strnlen(optarg, 5) != 4) {
-		fprintf(stderr, "Pixel formats must be 4 characters in length.\n");
+	    if (strnlen(optarg, 5) > 4) {
+		fprintf(stderr, "Pixel formats must be at most 4 characters.\n");
 		return (-1);
 	    }
 
@@ -518,7 +591,7 @@ main(int argc, char *argv[])
 		"Stream video device to ach channel.\n"
 		"Options:\n"
 		" -d    Device name. \"%s\" by default.\n"
-		" -f    4-character image format code. %s by default.\n"
+		" -f    Image format code. %s by default.\n"
 		" -g    Frame geometry in <w>x<h> format. %ux%u by default.\n"
 		" -b    Specify number of buffers to request. %u by default.\n"
 		" -t    Timeout in seconds. %f by default.\n"
@@ -542,11 +615,9 @@ main(int argc, char *argv[])
     int r = 0;
     int fd;
     bool stream = false;
-    struct ch_buf *buffers = calloc(buffer_count, sizeof(struct ch_buf));
-    if (buffers == NULL || errno == ENOMEM) {
-	fprintf(stderr, "No memory available.\n");
+    struct ch_buf *buffers = calloc_r(buffer_count, sizeof(struct ch_buf));
+    if (buffers == NULL)
 	return (-1);
-    }
 
     if ((r = (fd = open_device(video_device))) == -1)
 	goto cleanup;
