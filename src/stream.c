@@ -149,95 +149,6 @@ YUYV_to_RGB(struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb)
 }
 
 /**
- * Query available formats for a device. Validate user specified
- * format and resolution.
- */
-int
-query_fmts(int fd, uint32_t pixelformat, uint32_t frame_width, uint32_t frame_height)
-{
-    struct v4l2_fmtdesc fmtdesc;
-
-    fmtdesc.index = 0;
-    fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-
-    // Iterate until device returns no more.
-    while (ioctl_r(fd, VIDIOC_ENUM_FMT, &fmtdesc) == 0) {
-	char pixfmt_buf[5];
-	pixfmt_to_string(fmtdesc.pixelformat, pixfmt_buf);
-
-	// Either print out information or check for available geometry.
-	bool check_fmt = false;
-	if (list)
-	    printf("Format %s:", pixfmt_buf);
-
-	else if (pixelformat == fmtdesc.pixelformat)
-	    check_fmt = true;
-
-	struct v4l2_frmsizeenum frmsize;
-
-	frmsize.index = 0;
-	frmsize.pixel_format = fmtdesc.pixelformat;
-
-	// Iterate over framesizes for the current format until no more.
-	while (ioctl_r(fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0) {
-	    // Only supporting discrete resolutions currently.
-	    if (frmsize.type == V4L2_FRMSIZE_TYPE_DISCRETE) {
-		if (list) {
-		    struct v4l2_frmivalenum frmival;
-
-		    frmival.index = 0;
-		    frmival.pixel_format = fmtdesc.pixelformat;
-		    frmival.width = frmsize.discrete.width;
-		    frmival.height = frmsize.discrete.height;
-
-		    // Grab only the first frameinterval. Should be the highest.
-		    if (ioctl_r(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) != -1)
-			if (frmival.type == V4L2_FRMIVAL_TYPE_DISCRETE)
-			    printf(
-				" %ux%u(%u/%u fps)",
-				frmsize.discrete.width,
-				frmsize.discrete.height,
-				frmival.discrete.numerator,
-				frmival.discrete.denominator
-			    );
-
-		} else if (check_fmt)
-		    // If geometry for format is valid, return out.
-		    if (frame_width == frmsize.discrete.width
-			&& frame_height == frmsize.discrete.height)
-			return (0);
-	    }
-
-	    frmsize.index++;
-	}
-
-	// If geometry was found, return error.
-	if (check_fmt) {
-	    fprintf(stderr, "%ux%u is invalid geometry for format %s.\n",
-		    frame_width, frame_height, pixfmt_buf);
-
-	    return (-1);
-	}
-
-	if (list)
-	    printf("\n");
-
-	fmtdesc.index++;
-    }
-
-    // If format was found, return error.
-    if (!list) {
-	char in_pixfmt_buf[5];
-	pixfmt_to_string(pixelformat, in_pixfmt_buf);
-	fprintf(stderr, "Invalid format %s.\n", in_pixfmt_buf);
-
-	return (-1);
-    }
-
-    return (0);
-}
-
-/**
  * Initialize device state.
  */
 int
@@ -535,18 +446,43 @@ main(int argc, char *argv[])
 
     struct ch_device device;
     ch_init_device(&device);
+
     device.name = video_device;
 
     if ((r = ch_open_device(&device)) == -1)
      	goto cleanup;
 
+    // List all formats and framesizes then exit.
+    if (list) {
+	struct ch_fmts *fmts = ch_enum_fmts(&device);
+
+	size_t idx;
+	for (idx = 0; idx < fmts->length; idx++) {
+	    char pixfmt_buf[5];
+	    pixfmt_to_string(fmts->fmts[idx], pixfmt_buf);
+
+	    printf("%s:", pixfmt_buf);
+
+	    device.pixelformat = fmts->fmts[idx];
+	    struct ch_frmsizes *frmsizes = ch_enum_frmsizes(&device);
+
+	    size_t jdx;
+	    for (jdx = 0; jdx < frmsizes->length; jdx++)
+		printf(" %ux%u",
+		       frmsizes->frmsizes[jdx].width,
+		       frmsizes->frmsizes[jdx].height);
+
+	    ch_destroy_frmsizes(frmsizes);
+	    printf("\n");
+	}
+
+	ch_destroy_fmts(fmts);
+	fflush(stdout);
+
+	goto cleanup;
+    }
+
     fd = device.fd;
-
-    if ((r = query_fmts(fd, pixel_format, frame_width, frame_height)) == -1)
-	goto cleanup;
-
-    if (list)
-	goto cleanup;
 
     if ((r = init_device(fd, pixel_format, frame_width, frame_height)) == -1)
 	goto cleanup;

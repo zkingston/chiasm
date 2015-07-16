@@ -166,7 +166,7 @@ ch_close_device(struct ch_device *device)
 }
 
 struct ch_fmts *
-ch_enum_formats(struct ch_device *device)
+ch_enum_fmts(struct ch_device *device)
 {
     // Find maximum format index.
     struct v4l2_fmtdesc fmtdesc;
@@ -207,6 +207,45 @@ ch_destroy_fmts(struct ch_fmts *fmts)
 struct ch_frmsizes *
 ch_enum_frmsizes(struct ch_device *device)
 {
+    // Find maximum size index.
+    struct v4l2_frmsizeenum frmsize;
 
+    frmsize.index = 0;
+    frmsize.pixel_format = device->pixelformat;
 
+    while (ch_ioctl(device->fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0)
+	frmsize.index++;
+
+    // Only supporting discrete resolutions. Should return on first if not.
+    if (frmsize.type != V4L2_FRMSIZE_TYPE_DISCRETE)
+	return (NULL);
+
+    // Create storage array and fill.
+    struct ch_frmsizes *frmsizes = ch_calloc(1, sizeof(struct ch_frmsizes));
+    if (frmsizes == NULL)
+	return (NULL);
+
+    frmsizes->length = frmsize.index;
+
+    frmsizes->frmsizes = ch_calloc(frmsize.index, sizeof(struct ch_rect));
+    if (frmsizes->frmsizes == NULL) {
+	free(frmsizes);
+	return (NULL);
+    }
+
+    frmsize.index = 0;
+    while (ch_ioctl(device->fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0)
+	frmsizes->frmsizes[frmsize.index++] = (struct ch_rect) {
+	    frmsize.discrete.width,
+	    frmsize.discrete.height
+	};
+
+    return (frmsizes);
+}
+
+void
+ch_destroy_frmsizes(struct ch_frmsizes *frmsizes)
+{
+    free(frmsizes->frmsizes);
+    free(frmsizes);
 }

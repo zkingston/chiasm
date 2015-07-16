@@ -24,8 +24,8 @@ struct ch_fmts {
 };
 
 struct ch_frmsizes {
-    struct ch_rect frmsizes;
-    uint32_t length;
+    struct ch_rect *frmsizes;
+    uint32_t        length;
 };
 
 struct ch_frmbuf {
@@ -78,7 +78,7 @@ int ch_close_device(struct ch_device *device);
  * @param device An opened device.
  * @return An allocated struct ch_fmts of all pixel formats available.
  */
-struct ch_fmts *ch_enum_formats(struct ch_device *device);
+struct ch_fmts *ch_enum_fmts(struct ch_device *device);
 
 /**
  * @brief Deallocate a struct ch_fmts created by ch_enum_formats.
@@ -87,5 +87,22 @@ struct ch_fmts *ch_enum_formats(struct ch_device *device);
  * @return None.
  */
 void ch_destroy_fmts(struct ch_fmts *fmts);
+
+/**
+ * @brief Return a list of all supported framesizes for a device's selected
+ *        format.
+ *
+ * @param device An opened device.
+ * @return An allocated struct ch_frmsizes of all framesizes available.
+ */
+struct ch_frmsizes *ch_enum_frmsizes(struct ch_device *device);
+
+/**
+ * @brief Deallocate a struct ch_frmsizes created by ch_enum_frmsizes.
+ *
+ * @param frmsizes Allocated struct ch_frmsizes.
+ * @return None.
+ */
+void ch_destroy_frmsizes(struct ch_frmsizes *frmsizes);
 
 #endif
