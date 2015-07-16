@@ -105,4 +105,12 @@ struct ch_frmsizes *ch_enum_frmsizes(struct ch_device *device);
  */
 void ch_destroy_frmsizes(struct ch_frmsizes *frmsizes);
 
+/**
+ * @brief Sets device format and framesize based on contents of provided struct.
+ *
+ * @param device Device to set with parameters.
+ * @return 0 on success, -1 on failure.
+ */
+int ch_set_fmt(struct ch_device *device);
+
 #endif

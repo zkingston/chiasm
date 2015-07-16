@@ -13,7 +13,15 @@
 
 #include <chiasm.h>
 
-static int
+/**
+ * @brief Robust wrapper around ioctl.
+ *
+ * @param fd File-descriptor.
+ * @param request ioctl request.
+ * @param arg Arguments to request.
+ * @return 0 on success, -1 on failure.
+ */
+static inline int
 ch_ioctl(int fd, int request, void *arg)
 {
     int r;
@@ -32,7 +40,14 @@ ch_ioctl(int fd, int request, void *arg)
     return (0);
 }
 
-static void *
+/**
+ * @brief Robust wrapper around calloc.
+ *
+ * @param nmemb Number of elements to allocate.
+ * @param size Size of each element.
+ * @return Pointer to allocated memory on success, NULL on failure.
+ */
+static inline void *
 ch_calloc(size_t nmemb, size_t size)
 {
     void *r = calloc(nmemb, size);
@@ -45,7 +60,14 @@ ch_calloc(size_t nmemb, size_t size)
     return (r);
 }
 
-static void
+/**
+ * @brief Converts a pixelformat character code to a null-terminated string.
+ *
+ * @param pixfmt Pixel format character code.
+ * @param buf Buffer to fill in. Must be 5 elements long.
+ * @return None.
+ */
+static inline void
 ch_pixfmt_to_string(uint32_t pixfmt, char *buf)
 {
     size_t idx;
@@ -55,7 +77,13 @@ ch_pixfmt_to_string(uint32_t pixfmt, char *buf)
     buf[idx] = '\0';
 }
 
-static uint32_t
+/**
+ * @brief Converts a string into a pixelformat character code.
+ *
+ * @param buf Buffer to convert.
+ * @return Pixel format code from buffer.
+ */
+static inline uint32_t
 ch_string_to_pixfmt(char *buf)
 {
     uint32_t pixfmt = 0;
@@ -248,4 +276,95 @@ ch_destroy_frmsizes(struct ch_frmsizes *frmsizes)
 {
     free(frmsizes->frmsizes);
     free(frmsizes);
+}
+
+/**
+ * @brief Validates a device's requested format.
+ *
+ * @param device The device to validate.
+ * @return 0 on success, -1 on failure.
+ */
+static int
+ch_validate_fmt(struct ch_device *device)
+{
+    // Validate requested format and resolution before setting.
+    struct ch_fmts *fmts = ch_enum_fmts(device);
+    if (fmts == NULL)
+	return (-1);
+
+    size_t idx;
+    for (idx = 0; idx < fmts->length; idx++)
+	if (fmts->fmts[idx] == device->pixelformat)
+	    break;
+
+    if (idx == fmts->length) {
+	char pixfmt_buf[5];
+	ch_pixfmt_to_string(device->pixelformat, pixfmt_buf);
+
+	fprintf(stderr, "Format %s is unsupported by device.\n",
+		pixfmt_buf);
+	return (-1);
+    }
+
+    ch_destroy_fmts(fmts);
+
+    return (0);
+}
+
+/**
+ * @brief Validates a device's requested framesize.
+ *
+ * @param device The device to validate.
+ * @return 0 on success, -1 on failure.
+ */
+static int
+ch_validate_frmsize(struct ch_device *device)
+{
+    struct ch_frmsizes *frmsizes = ch_enum_frmsizes(device);
+
+    size_t idx;
+    for (idx = 0; idx < frmsizes->length; idx++)
+	if (frmsizes->frmsizes[idx].width == device->framesize.width
+	    && frmsizes->frmsizes[idx].height == device->framesize.height)
+	    break;
+
+    if (idx == frmsizes->length) {
+	char pixfmt_buf[5];
+	ch_pixfmt_to_string(device->pixelformat, pixfmt_buf);
+
+	fprintf(stderr, "Framesize %ux%u is not supported for format %s.\n",
+		device->framesize.width, device->framesize.height,
+		pixfmt_buf);
+	return (-1);
+    }
+
+    ch_destroy_frmsizes(frmsizes);
+
+    return (0);
+}
+
+int
+ch_set_fmt(struct ch_device *device)
+{
+    if (ch_validate_fmt(device) == -1)
+	return (-1);
+
+    if (ch_validate_frmsize(device) == -1)
+	return (-1);
+
+    struct v4l2_format fmt;
+
+    fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    fmt.fmt.pix.width = device->framesize.width;
+    fmt.fmt.pix.height = device->framesize.height;
+    fmt.fmt.pix.pixelformat = device->pixelformat;
+    fmt.fmt.pix.field = V4L2_FIELD_NONE;
+    fmt.fmt.pix.bytesperline = 0;
+
+    if (ch_ioctl(device->fd, VIDIOC_S_FMT, &fmt) == -1) {
+	fprintf(stderr, "Could not set output format.\n");
+	return (-1);
+    }
+
+    return (0);
 }

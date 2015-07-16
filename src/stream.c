@@ -482,10 +482,14 @@ main(int argc, char *argv[])
 	goto cleanup;
     }
 
-    fd = device.fd;
+    device.pixelformat = pixel_format;
+    device.framesize.width = frame_width;
+    device.framesize.height = frame_height;
 
-    if ((r = init_device(fd, pixel_format, frame_width, frame_height)) == -1)
+    if (ch_set_fmt(&device) == -1)
 	goto cleanup;
+
+    fd = device.fd;
 
     if ((r = init_mmap(fd, buffer_count, buffers)) == -1)
 	goto cleanup;
