@@ -9,7 +9,7 @@
 #include <errno.h>
 
 #include <sys/ioctl.h>
-#include <sys/stat.h>
+
 #include <sys/mman.h>
 #include <sys/select.h>
 #include <sys/time.h>
@@ -19,19 +19,6 @@
 #include <linux/videodev2.h>
 
 #include <chiasm.h>
-
-#define CH_DEFAULT_DEVICE    "/dev/video0"
-#define CH_DEFAULT_FORMAT    "YUYV"
-#define CH_DEFAULT_WIDTH     320
-#define CH_DEFAULT_HEIGHT    240
-#define CH_DEFAULT_BUFNUM    5
-#define CH_DEFAULT_TIMEOUT   2.0
-#define CH_DEFAULT_NUMFRAMES 0
-
-struct ch_buf {
-    uint8_t  *start;
-    uint32_t length;
-};
 
 bool list = false;
 
@@ -124,7 +111,7 @@ seconds_to_timeval(double seconds)
  * Converts a YUYV image into RGB.
  */
 static int
-YUYV_to_RGB(struct ch_buf *yuyv, struct ch_buf *rgb)
+YUYV_to_RGB(struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb)
 {
     rgb->length = yuyv->length / 2 * 3;
     rgb->start = calloc_r(rgb->length, sizeof(uint8_t));
@@ -156,32 +143,6 @@ YUYV_to_RGB(struct ch_buf *yuyv, struct ch_buf *rgb)
 	rgb->start[idx / 2 * 3 + 0] = byte_clamp(R);
 	rgb->start[idx / 2 * 3 + 1] = byte_clamp(G);
 	rgb->start[idx / 2 * 3 + 2] = byte_clamp(B);
-    }
-
-    return (0);
-}
-
-/**
- * Query the capabilities of a device, verify support.
- */
-int
-query_caps(int fd)
-{
-    struct v4l2_capability caps;
-
-    if (ioctl_r(fd, VIDIOC_QUERYCAP, &caps) == -1)
-	return (-1);
-
-    // Verify video capture is supported.
-    if (!(caps.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
-	fprintf(stderr, "Device does not support video capture.\n");
-	return (-1);
-    }
-
-    // Verify streaming is supported.
-    if (!(caps.capabilities & V4L2_CAP_STREAMING)) {
-	fprintf(stderr, "Device does not support streaming I/O.\n");
-	return (-1);
     }
 
     return (0);
@@ -303,7 +264,7 @@ init_device(int fd, uint32_t pixel_format, uint32_t frame_width, uint32_t frame_
  * Unmap mmap-ed buffers.
  */
 int
-unmap_buffers(uint32_t buffer_count, struct ch_buf *buffers)
+unmap_buffers(uint32_t buffer_count, struct ch_frmbuf *buffers)
 {
     size_t idx;
     for (idx = 0; idx < buffer_count; idx++) {
@@ -325,7 +286,7 @@ unmap_buffers(uint32_t buffer_count, struct ch_buf *buffers)
  * Initialize memory-mapped region for streaming video.
  */
 int
-init_mmap(int fd, uint32_t buffer_count, struct ch_buf *buffers)
+init_mmap(int fd, uint32_t buffer_count, struct ch_frmbuf *buffers)
 {
     struct v4l2_requestbuffers req;
 
@@ -434,7 +395,7 @@ stop_stream(int fd)
  * Read a frame from one of the buffers.
  */
 int
-query_frame(int fd, uint32_t buffer_count, struct ch_buf *buffers)
+query_frame(int fd, uint32_t buffer_count, struct ch_frmbuf *buffers)
 {
     struct v4l2_buffer buf;
 
@@ -454,7 +415,7 @@ query_frame(int fd, uint32_t buffer_count, struct ch_buf *buffers)
     }
 
     // Output image.
-    struct ch_buf t;
+    struct ch_frmbuf t;
     YUYV_to_RGB(&buffers[buf.index], &t);
 
     // fwrite(buffers[buf.index].start, buf.bytesused, 1, stdout);
@@ -470,53 +431,6 @@ query_frame(int fd, uint32_t buffer_count, struct ch_buf *buffers)
     return (0);
 }
 
-/**
- * Open a video device. Returns file descriptor on success, -1 on failure.
- */
-int
-open_device(char *video_device)
-{
-    struct stat st;
-
-    // Verify existence of device.
-    if (stat(video_device, &st) == -1) {
-	fprintf(stderr, "Failed to find device. %d: %s\n",
-		errno, strerror(errno));
-	return (-1);
-    }
-
-    // Verify device is a character device.
-    if (!S_ISCHR(st.st_mode)) {
-	fprintf(stderr, "%s is not a character device.\n", video_device);
-	return (-1);
-    }
-
-    int fd;
-
-    // Open device in read/write non-blocking mode.
-    if ((fd = open(video_device, O_RDWR | O_NONBLOCK)) == -1) {
-	fprintf(stderr, "Failed to open device. %d: %s\n",
-		errno, strerror(errno));
-	return (-1);
-    }
-
-    return (fd);
-}
-
-/**
- * Close a video device. Returns 0 on success, -1 on failure.
- */
-int
-close_device(int fd)
-{
-    if (close(fd) == -1) {
-	fprintf(stderr, "Failed to close device. %d: %s\n",
-		errno, strerror(errno));
-	return (-1);
-    }
-
-    return (0);
-}
 
 int
 main(int argc, char *argv[])
@@ -615,15 +529,18 @@ main(int argc, char *argv[])
     int r = 0;
     int fd;
     bool stream = false;
-    struct ch_buf *buffers = calloc_r(buffer_count, sizeof(struct ch_buf));
+    struct ch_frmbuf *buffers = calloc_r(buffer_count, sizeof(struct ch_frmbuf));
     if (buffers == NULL)
 	return (-1);
 
-    if ((r = (fd = open_device(video_device))) == -1)
-	goto cleanup;
+    struct ch_device device;
+    ch_init_device(&device);
+    device.name = video_device;
 
-    if ((r = query_caps(fd)) == -1)
-	goto cleanup;
+    if ((r = ch_open_device(&device)) == -1)
+     	goto cleanup;
+
+    fd = device.fd;
 
     if ((r = query_fmts(fd, pixel_format, frame_width, frame_height)) == -1)
 	goto cleanup;
@@ -672,7 +589,7 @@ cleanup:
     free(buffers);
 
     if (fd > 0)
-	close_device(fd);
+	ch_close_device(&device);
 
     return (r);
 }
