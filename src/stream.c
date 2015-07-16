@@ -172,90 +172,6 @@ init_device(int fd, uint32_t pixel_format, uint32_t frame_width, uint32_t frame_
 }
 
 /**
- * Unmap mmap-ed buffers.
- */
-int
-unmap_buffers(uint32_t buffer_count, struct ch_frmbuf *buffers)
-{
-    size_t idx;
-    for (idx = 0; idx < buffer_count; idx++) {
-	if (buffers[idx].start == NULL)
-	    continue;
-
-	if (munmap(buffers[idx].start, buffers[idx].length) == -1) {
-	    fprintf(stderr, "Failed to munmap buffer. %d: %s\n",
-		    errno, strerror(errno));
-
-	    return (-1);
-	}
-    }
-
-    return (0);
-}
-
-/**
- * Initialize memory-mapped region for streaming video.
- */
-int
-init_mmap(int fd, uint32_t buffer_count, struct ch_frmbuf *buffers)
-{
-    struct v4l2_requestbuffers req;
-
-    req.count = buffer_count;
-    req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    req.memory = V4L2_MEMORY_MMAP;
-
-    // Request a number of buffers.
-    if (ioctl_r(fd, VIDIOC_REQBUFS, &req) == -1) {
-	fprintf(stderr, "Failed to request buffers.\n");
-	return (-1);
-    }
-
-    // Compare return to requested amount of buffers.
-    if (req.count != buffer_count) {
-	fprintf(stderr, "Insufficient buffer memory on device (%u vs. %u).\n",
-		buffer_count, req.count);
-	return (-1);
-    }
-
-    // Query each buffer and map it into our address space.
-    size_t idx;
-    for (idx = 0; idx < buffer_count; idx++) {
-	struct v4l2_buffer buf;
-
-	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	buf.memory = V4L2_MEMORY_MMAP;
-	buf.index = idx;
-
-	if (ioctl_r(fd, VIDIOC_QUERYBUF, &buf) == -1) {
-	    fprintf(stderr, "Failed to query buffers.\n");
-	    return (-1);
-	}
-
-	buffers[idx].length = buf.length;
-	buffers[idx].start = mmap(
-	    NULL,
-	    buf.length,
-	    PROT_READ | PROT_WRITE,
-	    MAP_SHARED,
-	    fd,
-	    buf.m.offset
-	);
-
-	if (buffers[idx].start == MAP_FAILED) {
-	    fprintf(stderr, "Failed to mmap buffer. %d: %s\n",
-		    errno, strerror(errno));
-
-	    unmap_buffers(idx, buffers);
-
-	    return (-1);
-	}
-    }
-
-    return (0);
-}
-
-/**
  * Initialize streaming of the device.
  */
 int
@@ -326,11 +242,12 @@ query_frame(int fd, uint32_t buffer_count, struct ch_frmbuf *buffers)
     }
 
     // Output image.
-    struct ch_frmbuf t;
-    YUYV_to_RGB(&buffers[buf.index], &t);
+    // struct ch_frmbuf t;
+    // YUYV_to_RGB(&buffers[buf.index], &t);
 
     // fwrite(buffers[buf.index].start, buf.bytesused, 1, stdout);
-    fwrite(t.start, t.length, 1, stdout);
+    // fwrite(t.start, t.length, 1, stdout);
+    fprintf(stdout, ".");
     fflush(stdout);
 
     // Requeue buffer.
@@ -338,6 +255,41 @@ query_frame(int fd, uint32_t buffer_count, struct ch_frmbuf *buffers)
 	fprintf(stderr, "Failed requeuing buffer.\n");
 	return (-1);
     }
+
+    return (0);
+}
+
+static int
+list_formats(struct ch_device *device)
+{
+    struct ch_fmts *fmts = ch_enum_fmts(device);
+    if (fmts == NULL)
+	return (-1);
+
+    size_t idx;
+    for (idx = 0; idx < fmts->length; idx++) {
+	char pixfmt_buf[5];
+	pixfmt_to_string(fmts->fmts[idx], pixfmt_buf);
+
+	printf("%s:", pixfmt_buf);
+
+	device->pixelformat = fmts->fmts[idx];
+	struct ch_frmsizes *frmsizes = ch_enum_frmsizes(device);
+	if (frmsizes == NULL)
+	    return (-1);
+
+	size_t jdx;
+	for (jdx = 0; jdx < frmsizes->length; jdx++)
+	    printf(" %ux%u",
+		   frmsizes->frmsizes[jdx].width,
+		   frmsizes->frmsizes[jdx].height);
+
+	ch_destroy_frmsizes(frmsizes);
+	printf("\n");
+    }
+
+    ch_destroy_fmts(fmts);
+    fflush(stdout);
 
     return (0);
 }
@@ -440,9 +392,6 @@ main(int argc, char *argv[])
     int r = 0;
     int fd;
     bool stream = false;
-    struct ch_frmbuf *buffers = calloc_r(buffer_count, sizeof(struct ch_frmbuf));
-    if (buffers == NULL)
-	return (-1);
 
     struct ch_device device;
     ch_init_device(&device);
@@ -454,31 +403,7 @@ main(int argc, char *argv[])
 
     // List all formats and framesizes then exit.
     if (list) {
-	struct ch_fmts *fmts = ch_enum_fmts(&device);
-
-	size_t idx;
-	for (idx = 0; idx < fmts->length; idx++) {
-	    char pixfmt_buf[5];
-	    pixfmt_to_string(fmts->fmts[idx], pixfmt_buf);
-
-	    printf("%s:", pixfmt_buf);
-
-	    device.pixelformat = fmts->fmts[idx];
-	    struct ch_frmsizes *frmsizes = ch_enum_frmsizes(&device);
-
-	    size_t jdx;
-	    for (jdx = 0; jdx < frmsizes->length; jdx++)
-		printf(" %ux%u",
-		       frmsizes->frmsizes[jdx].width,
-		       frmsizes->frmsizes[jdx].height);
-
-	    ch_destroy_frmsizes(frmsizes);
-	    printf("\n");
-	}
-
-	ch_destroy_fmts(fmts);
-	fflush(stdout);
-
+	list_formats(&device);
 	goto cleanup;
     }
 
@@ -489,10 +414,12 @@ main(int argc, char *argv[])
     if (ch_set_fmt(&device) == -1)
 	goto cleanup;
 
-    fd = device.fd;
+    device.num_buffers = buffer_count;
 
-    if ((r = init_mmap(fd, buffer_count, buffers)) == -1)
+    if (ch_init_stream(&device) == -1)
 	goto cleanup;
+
+    fd = device.fd;
 
     if ((r = init_stream(fd, buffer_count)) == -1)
 	goto cleanup;
@@ -517,7 +444,7 @@ main(int argc, char *argv[])
 	    break;
 	}
 
-	if ((r = query_frame(fd, buffer_count, buffers)) == -1)
+	if ((r = query_frame(fd, buffer_count, device.in_buffers)) == -1)
 	    break;
     }
 
@@ -525,11 +452,7 @@ cleanup:
     if (stream)
 	stop_stream(fd);
 
-    unmap_buffers(buffer_count, buffers);
-    free(buffers);
-
-    if (fd > 0)
-	ch_close_device(&device);
+    ch_close_device(&device);
 
     return (r);
 }

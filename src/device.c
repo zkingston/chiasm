@@ -1,15 +1,18 @@
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
-#include <stdint.h>
-#include <linux/videodev2.h>
-#include <stdio.h>
+
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/ioctl.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include <sys/mman.h>
+
+#include <linux/videodev2.h>
 
 #include <chiasm.h>
 
@@ -125,6 +128,32 @@ ch_validate_device(int fd)
     return (0);
 }
 
+/**
+ * @brief Unmaps memory-mapped streaming buffers.
+ *
+ * @param device Device to unmap from.
+ * @return 0 on success, -1 on failure.
+ */
+static int
+ch_unmap_buffers(struct ch_device *device)
+{
+    size_t idx;
+    for (idx = 0; idx < device->num_buffers; idx++) {
+	if (device->in_buffers[idx].start == NULL)
+	    continue;
+
+	if (munmap(device->in_buffers[idx].start,
+		   device->in_buffers[idx].length) == -1) {
+	    fprintf(stderr, "Failed to munmap buffer. %d: %s\n",
+		    errno, strerror(errno));
+
+	    return (-1);
+	}
+    }
+
+    return (0);
+}
+
 void
 ch_init_device(struct ch_device *device)
 {
@@ -140,8 +169,8 @@ ch_init_device(struct ch_device *device)
     pthread_mutex_init(&device->out_mutex, NULL);
 
     device->framesize = (struct ch_rect) {CH_DEFAULT_WIDTH, CH_DEFAULT_HEIGHT};
-
     device->pixelformat = ch_string_to_pixfmt(CH_DEFAULT_FORMAT);
+    device->stream = false;
 }
 
 int
@@ -183,13 +212,25 @@ error:
 int
 ch_close_device(struct ch_device *device)
 {
-    if (close(device->fd) == -1) {
-	fprintf(stderr, "Failed to close device. %d: %s\n",
-		errno, strerror(errno));
-	return (-1);
+    if (device->stream)
+	ch_stop_stream(device);
+
+    if (device->in_buffers)
+	ch_unmap_buffers(device);
+
+    free(device->in_buffers);
+    device->in_buffers = NULL;
+
+    if (device->fd > 0) {
+	if (close(device->fd) == -1) {
+	    fprintf(stderr, "Failed to close device. %d: %s\n",
+		    errno, strerror(errno));
+	    return (-1);
+	}
+
+	device->fd = 0;
     }
 
-    device->fd = 0;
     return (0);
 }
 
@@ -346,12 +387,14 @@ ch_validate_frmsize(struct ch_device *device)
 int
 ch_set_fmt(struct ch_device *device)
 {
+    // Validate request.
     if (ch_validate_fmt(device) == -1)
 	return (-1);
 
     if (ch_validate_frmsize(device) == -1)
 	return (-1);
 
+    // Set format and framesize on device.
     struct v4l2_format fmt;
 
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -366,5 +409,84 @@ ch_set_fmt(struct ch_device *device)
 	return (-1);
     }
 
+    return (0);
+}
+
+int
+ch_init_stream(struct ch_device *device)
+{
+    struct v4l2_requestbuffers req;
+
+    req.count = device->num_buffers;
+    req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    req.memory = V4L2_MEMORY_MMAP;
+
+    // Request a number of buffers.
+    if (ch_ioctl(device->fd, VIDIOC_REQBUFS, &req) == -1) {
+	fprintf(stderr, "Failed to request buffers.\n");
+	return (-1);
+    }
+
+    // Compare return to requested amount of buffers.
+    if (req.count != device->num_buffers) {
+	fprintf(stderr, "Insufficient buffer memory on device (%u vs. %u).\n",
+		device->num_buffers, req.count);
+	return (-1);
+    }
+
+    // Allocate buffers.
+    device->in_buffers = ch_calloc(req.count, sizeof(struct ch_frmbuf));
+    if (device->in_buffers == NULL)
+	return (-1);
+
+    // Query each buffer and map it into our address space.
+    size_t idx;
+    for (idx = 0; idx < req.count; idx++) {
+	struct v4l2_buffer buf;
+
+	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	buf.memory = V4L2_MEMORY_MMAP;
+	buf.index = idx;
+
+	if (ch_ioctl(device->fd, VIDIOC_QUERYBUF, &buf) == -1) {
+	    fprintf(stderr, "Failed to query buffers.\n");
+	    goto error;
+	}
+
+	device->in_buffers[idx].length = buf.length;
+	device->in_buffers[idx].start = mmap(
+	    NULL,
+	    buf.length,
+	    PROT_READ | PROT_WRITE,
+	    MAP_SHARED,
+	    device->fd,
+	    buf.m.offset
+	);
+
+	if (device->in_buffers[idx].start == MAP_FAILED) {
+	    fprintf(stderr, "Failed to mmap buffer. %d: %s\n",
+		    errno, strerror(errno));
+	    goto error;
+	}
+    }
+
+    return (0);
+
+error:
+    ch_unmap_buffers(device);
+    free(device->in_buffers);
+
+    return (-1);
+}
+
+int
+ch_start_stream(struct ch_device *device)
+{
+    return (0);
+}
+
+int
+ch_stop_stream(struct ch_device *device)
+{
     return (0);
 }

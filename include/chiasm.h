@@ -2,6 +2,7 @@
 #define CHIASM_H_
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <pthread.h>
 #include <time.h>
 
@@ -38,13 +39,15 @@ struct ch_device {
     int   fd;
 
     struct ch_frmbuf *in_buffers;
-    size_t            num_buffers;
+    uint32_t          num_buffers;
 
-    struct ch_frmbuf  out_buffer;
-    pthread_mutex_t   out_mutex;
+    struct ch_frmbuf out_buffer;
+    pthread_mutex_t  out_mutex;
 
     struct ch_rect framesize;
     uint32_t       pixelformat;
+
+    bool stream;
 };
 
 /**
@@ -112,5 +115,11 @@ void ch_destroy_frmsizes(struct ch_frmsizes *frmsizes);
  * @return 0 on success, -1 on failure.
  */
 int ch_set_fmt(struct ch_device *device);
+
+int ch_init_stream(struct ch_device *device);
+
+int ch_start_stream(struct ch_device *device);
+
+int ch_stop_stream(struct ch_device *device);
 
 #endif
