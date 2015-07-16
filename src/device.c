@@ -530,7 +530,7 @@ ch_stream(struct ch_device *device, uint32_t num_frames,
 	ch_start_stream(device);
 
     // Allocate output buffer.
-    device->out_buffer.length =
+    device->out_buffer.length = 3 *
 	device->framesize.width * device->framesize.height;
     device->out_buffer.start = ch_calloc(device->out_buffer.length,
 					 sizeof(uint8_t));
@@ -583,6 +583,7 @@ ch_stream(struct ch_device *device, uint32_t num_frames,
 
 	switch (device->pixelformat) {
 	case V4L2_PIX_FMT_YUYV:
+	    ch_YUYV_to_RGB(&device->in_buffers[buf.index], &device->out_buffer);
 	    break;
 	default:
 	    fprintf(stderr, "Image format not supported for callbacks.\n");

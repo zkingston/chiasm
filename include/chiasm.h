@@ -54,6 +54,15 @@ struct ch_device {
 };
 
 /**
+ * @brief Convert an YUYV format image into a simple RGB array.
+ *
+ * @param yuyv YUYV format image to convert.
+ * @param rgb Output image.
+ * @return None.
+ */
+void ch_YUYV_to_RGB(struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb);
+
+/**
  * @brief Converts a pixelformat character code to a null-terminated string.
  *
  * @param pixfmt Pixel format character code.
