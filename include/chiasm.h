@@ -6,6 +6,8 @@
 #include <pthread.h>
 #include <time.h>
 
+#include <sys/time.h>
+
 #define CH_DEFAULT_DEVICE    "/dev/video0"
 #define CH_DEFAULT_FORMAT    "YUYV"
 #define CH_DEFAULT_WIDTH     320
@@ -47,6 +49,7 @@ struct ch_device {
     struct ch_rect framesize;
     uint32_t       pixelformat;
 
+    struct timeval timeout;
     bool stream;
 };
 
@@ -66,6 +69,14 @@ inline void ch_pixfmt_to_string(uint32_t pixfmt, char *buf);
  * @return Pixel format code from buffer.
  */
 inline uint32_t ch_string_to_pixfmt(char *buf);
+
+/**
+ * @brief Converts an amount in seconds to a struct timeval.
+ *
+ * @param seconds Time in seconds.
+ * @return Time in a struct timeval.
+ */
+inline struct timeval ch_sec_to_timeval(double seconds);
 
 /**
  * @brief Initialize a struct ch_device.
@@ -156,5 +167,15 @@ int ch_start_stream(struct ch_device *device);
  * @return 0 on succes, -1 on failure.
  */
 int ch_stop_stream(struct ch_device *device);
+
+/**
+ * @brief Stream video and call a callback upon every new frame.
+ *
+ * @param device Device to stream from.
+ * @param num_frames Number of frames to stream. 0 for unlimited.
+ * @param callback Function to callback on each new frame.
+ */
+int ch_stream(struct ch_device *device, uint32_t num_frames,
+	      void (*callback)(struct ch_frmbuf *frm));
 
 #endif

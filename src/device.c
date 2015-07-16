@@ -85,6 +85,16 @@ ch_string_to_pixfmt(char *buf)
     return (pixfmt);
 }
 
+inline struct timeval
+ch_sec_to_timeval(double seconds)
+{
+    struct timeval ret;
+    ret.tv_sec = (long) seconds;
+    ret.tv_usec = (long) ((seconds - (double) ret.tv_sec) * 1000000);
+
+    return (ret);
+}
+
 /**
  * @brief Checks a video device's capabilities for needed support.
  *
@@ -157,6 +167,7 @@ ch_init_device(struct ch_device *device)
 
     device->framesize = (struct ch_rect) {CH_DEFAULT_WIDTH, CH_DEFAULT_HEIGHT};
     device->pixelformat = ch_string_to_pixfmt(CH_DEFAULT_FORMAT);
+    device->timeout = ch_sec_to_timeval(CH_DEFAULT_TIMEOUT);
     device->stream = false;
 }
 
@@ -469,6 +480,7 @@ error:
 int
 ch_start_stream(struct ch_device *device)
 {
+    // Query each buffer to be filled.
     size_t idx;
     for (idx = 0; idx < device->num_buffers; idx++) {
 	struct v4l2_buffer buf;
@@ -477,13 +489,13 @@ ch_start_stream(struct ch_device *device)
 	buf.memory = V4L2_MEMORY_MMAP;
 	buf.index = idx;
 
-	// Query each buffer to be filled.
 	if (ch_ioctl(device->fd, VIDIOC_QBUF, &buf) == -1) {
 	    fprintf(stderr, "Failed to request buffer.\n");
 	    return (-1);
 	}
     }
 
+    // Start streaming.
     enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
     if (ch_ioctl(device->fd, VIDIOC_STREAMON, &type) == -1) {
@@ -506,5 +518,62 @@ ch_stop_stream(struct ch_device *device)
     }
 
     device->stream = false;
+    return (0);
+}
+
+int
+ch_stream(struct ch_device *device, uint32_t num_frames,
+	  void (*callback)(struct ch_frmbuf *frm))
+{
+    if (!device->stream)
+	ch_start_stream(device);
+
+    size_t n;
+    for (n = 0; (num_frames != 0) ? n < num_frames : 1; n++) {
+	// Wait on select for a new frame.
+	fd_set fds;
+	FD_ZERO(&fds);
+	FD_SET(device->fd, &fds);
+
+	struct timeval temp = device->timeout;
+	int r = select(device->fd + 1, &fds, NULL, NULL, &temp);
+
+	if (r == -1) {
+	    fprintf(stderr, "Error on select. %d: %s\n",
+		    errno, strerror(errno));
+	    return (-1);
+
+	} else if (r == 0) {
+	    fprintf(stderr, "Timeout on select.\n");
+	    return (-1);
+	}
+
+	// Dequeue buffer.
+	struct v4l2_buffer buf;
+
+	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	buf.memory = V4L2_MEMORY_MMAP;
+
+	if (ch_ioctl(device->fd, VIDIOC_DQBUF, &buf) == -1) {
+	    fprintf(stderr, "Failure dequeuing buffer.\n");
+	    return (-1);
+	}
+
+	// Verify buffer is valid.
+	if (buf.index > device->num_buffers) {
+	    fprintf(stderr, "Bad buffer index returned from deque.\n");
+	    return (-1);
+	}
+
+	fprintf(stdout, ".");
+	fflush(stdout);
+
+	// Requeue buffer.
+	if (ch_ioctl(device->fd, VIDIOC_QBUF, &buf) == -1) {
+	    fprintf(stderr, "Failed requeuing buffer.\n");
+	    return (-1);
+	}
+    }
+
     return (0);
 }

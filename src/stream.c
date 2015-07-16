@@ -20,8 +20,6 @@
 
 #include <chiasm.h>
 
-bool list = false;
-
 /**
  * Wrapper around ioctl() to print out error message upon failure.
  */
@@ -53,18 +51,6 @@ byte_clamp(double v)
     return (uint8_t) ((v > 255) ? 255 : ((v < 0) ? 0 : v));
 }
 
-/**
- * Converts a number of seconds into a struct timeval.
- */
-struct timeval
-seconds_to_timeval(double seconds)
-{
-    struct timeval ret;
-    ret.tv_sec = (long) seconds;
-    ret.tv_usec = (long) ((seconds - (double) ret.tv_sec) * 1000000);
-
-    return (ret);
-}
 
 /**
  * Converts a YUYV image into RGB.
@@ -107,45 +93,10 @@ YUYV_to_RGB(struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb)
     return (0);
 }
 
-/**
- * Read a frame from one of the buffers.
- */
-int
-query_frame(int fd, uint32_t buffer_count, struct ch_frmbuf *buffers)
+void
+stream_callback(struct ch_frmbuf *frm)
 {
-    struct v4l2_buffer buf;
 
-    buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-    buf.memory = V4L2_MEMORY_MMAP;
-
-    // Deque buffer from device.
-    if (ioctl_r(fd, VIDIOC_DQBUF, &buf) == -1) {
-	fprintf(stderr, "Failure dequeuing buffer.\n");
-	return (-1);
-    }
-
-    // Verify buffer is valid.
-    if (buf.index > buffer_count) {
-	fprintf(stderr, "Bad buffer index returned from deque.\n");
-	return (-1);
-    }
-
-    // Output image.
-    // struct ch_frmbuf t;
-    // YUYV_to_RGB(&buffers[buf.index], &t);
-
-    // fwrite(buffers[buf.index].start, buf.bytesused, 1, stdout);
-    // fwrite(t.start, t.length, 1, stdout);
-    fprintf(stdout, ".");
-    fflush(stdout);
-
-    // Requeue buffer.
-    if (ioctl_r(fd, VIDIOC_QBUF, &buf) == -1) {
-	fprintf(stderr, "Failed requeuing buffer.\n");
-	return (-1);
-    }
-
-    return (0);
 }
 
 static int
@@ -186,20 +137,18 @@ list_formats(struct ch_device *device)
 int
 main(int argc, char *argv[])
 {
-    char *video_device = CH_DEFAULT_DEVICE;
-    uint32_t pixel_format = ch_string_to_pixfmt(CH_DEFAULT_FORMAT);
-    uint32_t frame_width  = CH_DEFAULT_WIDTH;
-    uint32_t frame_height = CH_DEFAULT_HEIGHT;
-    uint32_t buffer_count = CH_DEFAULT_BUFNUM;
-    size_t num_frames  = CH_DEFAULT_NUMFRAMES;
-    struct timeval timeout = seconds_to_timeval(CH_DEFAULT_TIMEOUT);
+    size_t num_frames = CH_DEFAULT_NUMFRAMES;
+    bool list = false;
+
+    struct ch_device device;
+    ch_init_device(&device);
 
     int opt;
     char *opts = "n:t:b:d:f:g:s:lh?";
     while ((opt = getopt(argc, argv, opts)) != -1) {
 	switch (opt) {
 	case 'd':
-	    video_device = optarg;
+	    device.name = optarg;
 	    break;
 	case 'l':
 	    list = true;
@@ -221,12 +170,12 @@ main(int argc, char *argv[])
 		return (-1);
 	    }
 
-	    timeout = seconds_to_timeval(r);
+	    device.timeout = ch_sec_to_timeval(r);
 	    break;
 	}
 	case 'b':
-	    buffer_count = (uint32_t) strtoul(optarg, NULL, 10);
-	    if (errno == EINVAL || errno == ERANGE || buffer_count == 0) {
+	    device.num_buffers = (uint32_t) strtoul(optarg, NULL, 10);
+	    if (errno == EINVAL || errno == ERANGE || device.num_buffers == 0) {
 		fprintf(stderr, "Invalid value in buffer count argument %s.\n",
 			optarg);
 		return (-1);
@@ -239,10 +188,11 @@ main(int argc, char *argv[])
 		return (-1);
 	    }
 
-	    pixel_format = ch_string_to_pixfmt(optarg);
+	    device.pixelformat = ch_string_to_pixfmt(optarg);
 	    break;
 	case 'g':
-	    if (sscanf(optarg, "%ux%u", &frame_width, &frame_height) != 2) {
+	    if (sscanf(optarg, "%ux%u",
+		       &device.framesize.width, &device.framesize.height) != 2) {
 		fprintf(stderr, "Error parsing geometry string.\n");
 		return (-1);
 	    }
@@ -253,7 +203,6 @@ main(int argc, char *argv[])
 	default:
 	    printf(
 		"Usage: %s [OPTIONS]\n"
-		"Stream video device to ach channel.\n"
 		"Options:\n"
 		" -d    Device name. \"%s\" by default.\n"
 		" -f    Image format code. %s by default.\n"
@@ -278,12 +227,6 @@ main(int argc, char *argv[])
     }
 
     int r = 0;
-    int fd;
-
-    struct ch_device device;
-    ch_init_device(&device);
-
-    device.name = video_device;
 
     if ((r = ch_open_device(&device)) == -1)
      	goto cleanup;
@@ -294,44 +237,14 @@ main(int argc, char *argv[])
 	goto cleanup;
     }
 
-    device.pixelformat = pixel_format;
-    device.framesize.width = frame_width;
-    device.framesize.height = frame_height;
-
     if (ch_set_fmt(&device) == -1)
 	goto cleanup;
-
-    device.num_buffers = buffer_count;
 
     if (ch_init_stream(&device) == -1)
 	goto cleanup;
 
-    if (ch_start_stream(&device) == -1)
+    if (ch_stream(&device, num_frames, stream_callback) == -1)
 	goto cleanup;
-
-    fd = device.fd;
-
-    // Only grab as many frames as desired.
-    size_t n;
-    for (n = 0; (num_frames != 0) ? n < num_frames : 1; n++) {
-	fd_set fds;
-	FD_ZERO(&fds);
-	FD_SET(fd, &fds);
-
-	struct timeval temp = timeout;
-	r = select(fd + 1, &fds, NULL, NULL, &temp);
-
-	if (r == -1) {
-	    fprintf(stderr, "Error on select. %d: %s\n", errno, strerror(errno));
-	    break;
-	} else if (r == 0) {
-	    fprintf(stderr, "Timeout on select.\n");
-	    break;
-	}
-
-	if ((r = query_frame(fd, buffer_count, device.in_buffers)) == -1)
-	    break;
-    }
 
 cleanup:
     ch_close_device(&device);
