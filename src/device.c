@@ -196,7 +196,10 @@ ch_init_outbuf(struct ch_device *device)
 static void
 ch_destroy_outbuf(struct ch_device *device)
 {
-    free(device->out_buffer.start);
+    if (device->out_buffer.start != NULL)
+	free(device->out_buffer.start);
+
+    device->out_buffer.start = NULL;
     device->out_buffer.length = 0;
 }
 

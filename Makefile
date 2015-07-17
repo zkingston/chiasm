@@ -1,5 +1,6 @@
 all:
-	gcc -Wall -Wextra -Iinclude -o bin/stream src/*.c -ljpeg
+	gcc -Wall -Wextra -Iinclude -g3 -O0 -o bin/stream src/*.c \
+	-ljpeg -lavutil -lavformat -lavcodec
 
 clean:
 	rm bin/stream

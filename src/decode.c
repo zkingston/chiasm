@@ -60,6 +60,8 @@ ch_YUYV_to_RGB(const struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb)
  * @param cinfo Context information.
  * @return None.
  */
+
+/**
 static void
 ch_jpeg_error(j_common_ptr cinfo)
 {
@@ -68,6 +70,7 @@ ch_jpeg_error(j_common_ptr cinfo)
 
     longjmp(jerr->cx, 1);
 }
+
 
 int
 ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
@@ -127,6 +130,93 @@ exit:
 	int idx;
 	for (idx = 0; idx < jerr.pub.last_jpeg_message; idx++)
 	    fprintf(stderr, "%s\n", jerr.pub.jpeg_message_table[idx]);
+	r = -1;
+    }
+
+    return (r);
+}
+*/
+
+#include <stdio.h>
+
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+
+int
+ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
+{
+    fprintf(stderr, "Registering codecs.\n");
+
+    // Register all codecs.
+    av_register_all();
+
+    fprintf(stderr, "Finding codec.\n");
+
+    // Find decoder for MJPEG.
+    AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_MJPEG);
+    if (codec == NULL) {
+	fprintf(stderr, "Codec not found.\n");
+	return (-1);
+    }
+
+    fprintf(stderr, "Opening memory source.\n");
+
+    FILE *src = fmemopen(mjpg->start, mjpg->length, "rb");
+    if (src == NULL) {
+	fprintf(stderr, "Failed to open memory buffer. %d: %s\n",
+		errno, strerror(errno));
+	return (-1);
+    }
+
+    fprintf(stderr, "Allocating codec context.\n");
+
+    // Allocate codec context.
+    int r = 0;
+    AVCodecContext *codec_cx = avcodec_alloc_context3(codec);
+    if (codec_cx == NULL) {
+	fprintf(stderr, "Could not allocate codec context.\n");
+	r = -1;
+	goto exit;
+    }
+
+    fprintf(stderr, "Opening codec.\n");
+
+    // Open codec.
+    if (avcodec_open2(codec_cx, codec, NULL) < 0) {
+	fprintf(stderr, "Could not open codec.\n");
+	r = -1;
+	goto exit;
+    }
+
+    AVFrame frame = av_frame_alloc();
+    if (frame == NULL) {
+	fprintf(stderr, "Failed to allocate frame.\n");
+	r = -1;
+	goto exit;
+    }
+
+    AVFrame frameRGB = av_frame_alloc();
+    if (frameRGB == NULL) {
+	fprintf(stderr, "Failed to allocate frame.\n");
+	r = -1;
+	goto exit;
+    }
+
+exit:
+    fprintf(stderr, "Exiting decode.\n");
+
+    av_frame_free(&frame);
+    av_frame_free(&frameRGB);
+
+    if (codec_cx != NULL) {
+	avcodec_close(codec_cx);
+	av_free(codec_cx);
+    }
+
+    if (fclose(src) == EOF)  {
+	fprintf(stderr, "Failed to close memory source. %d: %s\n",
+		errno, strerror(errno));
 	r = -1;
     }
 
