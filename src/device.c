@@ -29,17 +29,21 @@ ch_ioctl(struct ch_device *device, int request, void *arg)
 {
     int r;
 
+    // If device is closed, do nothing and error.
     if (device->fd == 0)
 	return (-1);
 
+    // Loop request until not interrupted.
     do {
 	r = ioctl(device->fd, request, arg);
     } while (r == -1 && errno == EINTR);
 
     if (r == -1) {
+	// No output on EINVAL, used to determine end of enumeration.
 	if (errno != EINVAL)
 	    fprintf(stderr, "ioctl failure. %d: %s\n", errno, strerror(errno));
 
+	// If device no longer exists, close the device.
 	if (errno == ENODEV)
 	    ch_close_device(device);
 
@@ -61,6 +65,7 @@ ch_calloc(size_t nmemb, size_t size)
 {
     void *r = calloc(nmemb, size);
 
+    // Check if we could not allocate memory.
     if (r == NULL || errno == ENOMEM) {
 	fprintf(stderr, "No memory available.\n");
 	return (NULL);
@@ -142,6 +147,7 @@ ch_unmap_buffers(struct ch_device *device)
 {
     size_t idx;
     for (idx = 0; idx < device->num_buffers; idx++) {
+	// Only unmap mapped buffers.
 	if (device->in_buffers[idx].start == NULL)
 	    continue;
 
@@ -155,6 +161,43 @@ ch_unmap_buffers(struct ch_device *device)
     }
 
     return (0);
+}
+
+/**
+ * @brief Allocate output RGB image buffer.
+ *
+ * @param  device Device to allocate buffer for.
+ * @return 0 on success, -1 on failure.
+ */
+static int
+ch_init_outbuf(struct ch_device *device)
+{
+    // Dimensions are for a 24-bit RGB (3 bytes per pixel) image.
+    device->out_buffer.length =
+	3 * device->framesize.width * device->framesize.height;
+
+    device->out_buffer.start =
+	ch_calloc(device->out_buffer.length, sizeof(uint8_t));
+
+    if (device->out_buffer.start == NULL) {
+	device->out_buffer.length = 0;
+	return (-1);
+    }
+
+    return (0);
+}
+
+/**
+ * @brief Deallocate output RGB image buffer.
+ *
+ * @param device Device to deallocate buffer for.
+ * @return None.
+ */
+static void
+ch_destroy_outbuf(struct ch_device *device)
+{
+    free(device->out_buffer.start);
+    device->out_buffer.length = 0;
 }
 
 void
@@ -216,12 +259,17 @@ error:
 int
 ch_close_device(struct ch_device *device)
 {
+    // If memory-mapped regions are initialized, unmap them.
     if (device->in_buffers)
 	ch_unmap_buffers(device);
 
     free(device->in_buffers);
     device->in_buffers = NULL;
 
+    // Destroy allocated output buffer if it exists.
+    ch_destroy_outbuf(device);
+
+    // Only close file-descriptor if still open.
     if (device->fd > 0) {
 	if (close(device->fd) == -1) {
 	    fprintf(stderr, "Failed to close device. %d: %s\n",
@@ -261,6 +309,7 @@ ch_enum_fmts(struct ch_device *device)
 	return (NULL);
     }
 
+    // Reiterate and fill array.
     fmtdesc.index = 0;
     while (ch_ioctl(device, VIDIOC_ENUM_FMT, &fmtdesc) == 0)
 	fmts->fmts[fmtdesc.index++] = fmtdesc.pixelformat;
@@ -268,8 +317,7 @@ ch_enum_fmts(struct ch_device *device)
     return (fmts);
 }
 
-void
-ch_destroy_fmts(struct ch_fmts *fmts)
+void ch_destroy_fmts(struct ch_fmts *fmts)
 {
     free(fmts->fmts);
     free(fmts);
@@ -304,6 +352,7 @@ ch_enum_frmsizes(struct ch_device *device)
 	return (NULL);
     }
 
+    // Reiterate and fill array.
     frmsize.index = 0;
     while (ch_ioctl(device, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0)
 	frmsizes->frmsizes[frmsize.index++] = (struct ch_rect) {
@@ -330,7 +379,6 @@ ch_destroy_frmsizes(struct ch_frmsizes *frmsizes)
 static int
 ch_validate_fmt(struct ch_device *device)
 {
-    // Validate requested format and resolution before setting.
     struct ch_fmts *fmts = ch_enum_fmts(device);
     if (fmts == NULL)
 	return (-1);
@@ -481,46 +529,14 @@ error:
     return (-1);
 }
 
-/**
- * @brief Allocate output RGB image buffer.
- *
- * @param  device Device to allocate buffer for.
- * @return 0 on success, -1 on failure.
- */
-static int
-ch_init_outbuf(struct ch_device *device)
-{
-   // Allocate output buffer.
-    device->out_buffer.length =
-	3 * device->framesize.width * device->framesize.height;
-
-    device->out_buffer.start =
-	ch_calloc(device->out_buffer.length, sizeof(uint8_t));
-
-    if (device->out_buffer.start == NULL) {
-	device->out_buffer.length = 0;
-	return (-1);
-    }
-
-    return (0);
-}
-
-/**
- * @brief Deallocate output RGB image buffer.
- *
- * @param device Device to deallocate buffer for.
- * @return None.
- */
-static void
-ch_destroy_outbuf(struct ch_device *device)
-{
-    free(device->out_buffer.start);
-    device->out_buffer.length = 0;
-}
-
 int
 ch_start_stream(struct ch_device *device)
 {
+    // Allocate and map input buffers.
+    if (device->in_buffers == NULL)
+	if (ch_init_stream(device) == -1)
+	    return (-1);
+
     // Initialize output buffer.
     if (ch_init_outbuf(device) == -1)
 	return (-1);
@@ -545,7 +561,6 @@ ch_start_stream(struct ch_device *device)
 
     if (ch_ioctl(device, VIDIOC_STREAMON, &type) == -1) {
 	fprintf(stderr, "Failed to start stream.\n");
-
 	return (-1);
     }
 

@@ -171,9 +171,6 @@ main(int argc, char *argv[])
     if ((r = ch_set_fmt(&device)) == -1)
 	goto cleanup;
 
-    if ((r = ch_init_stream(&device)) == -1)
-	goto cleanup;
-
     if ((r = ch_stream(&device, num_frames, stream_callback)) == -1)
 	goto cleanup;
 
