@@ -54,6 +54,6 @@ struct ch_device {
 };
 
 #include <chiasm/device.h>
-#include <chiasm/image.h>
+#include <chiasm/decode.h>
 
 #endif
