@@ -25,17 +25,23 @@
  * @return 0 on success, -1 on failure.
  */
 static inline int
-ch_ioctl(int fd, int request, void *arg)
+ch_ioctl(struct ch_device *device, int request, void *arg)
 {
     int r;
 
+    if (device->fd == 0)
+	return (-1);
+
     do {
-	r = ioctl(fd, request, arg);
+	r = ioctl(device->fd, request, arg);
     } while (r == -1 && errno == EINTR);
 
     if (r == -1) {
 	if (errno != EINVAL)
 	    fprintf(stderr, "ioctl failure. %d: %s\n", errno, strerror(errno));
+
+	if (errno == ENODEV)
+	    ch_close_device(device);
 
 	return (-1);
     }
@@ -98,16 +104,16 @@ ch_sec_to_timeval(double seconds)
 /**
  * @brief Checks a video device's capabilities for needed support.
  *
- * @param fd File-desciptor of device to check.
+ * @param device Device to validate.
  * @return 0 on success, -1 on failure.
  */
 static int
-ch_validate_device(int fd)
+ch_validate_device(struct ch_device *device)
 {
     struct v4l2_capability caps;
 
     // Query device for capabilities.
-    if (ch_ioctl(fd, VIDIOC_QUERYCAP, &caps) == -1)
+    if (ch_ioctl(device, VIDIOC_QUERYCAP, &caps) == -1)
 	return (-1);
 
     // Verify video capture is supported.
@@ -197,7 +203,7 @@ ch_open_device(struct ch_device *device)
     }
 
     // Verify device can stream video.
-    if (ch_validate_device(device->fd) == -1)
+    if (ch_validate_device(device) == -1)
 	goto error;
 
     return (0);
@@ -210,9 +216,6 @@ error:
 int
 ch_close_device(struct ch_device *device)
 {
-    if (device->stream)
-	ch_stop_stream(device);
-
     if (device->in_buffers)
 	ch_unmap_buffers(device);
 
@@ -227,6 +230,7 @@ ch_close_device(struct ch_device *device)
 	}
 
 	device->fd = 0;
+	device->stream = false;
     }
 
     return (0);
@@ -241,7 +245,7 @@ ch_enum_fmts(struct ch_device *device)
     fmtdesc.index = 0;
     fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
-    while (ch_ioctl(device->fd, VIDIOC_ENUM_FMT, &fmtdesc) == 0)
+    while (ch_ioctl(device, VIDIOC_ENUM_FMT, &fmtdesc) == 0)
 	fmtdesc.index++;
 
     // Create storage array and fill.
@@ -258,7 +262,7 @@ ch_enum_fmts(struct ch_device *device)
     }
 
     fmtdesc.index = 0;
-    while (ch_ioctl(device->fd, VIDIOC_ENUM_FMT, &fmtdesc) == 0)
+    while (ch_ioctl(device, VIDIOC_ENUM_FMT, &fmtdesc) == 0)
 	fmts->fmts[fmtdesc.index++] = fmtdesc.pixelformat;
 
     return (fmts);
@@ -280,7 +284,7 @@ ch_enum_frmsizes(struct ch_device *device)
     frmsize.index = 0;
     frmsize.pixel_format = device->pixelformat;
 
-    while (ch_ioctl(device->fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0)
+    while (ch_ioctl(device, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0)
 	frmsize.index++;
 
     // Only supporting discrete resolutions. Should return on first if not.
@@ -301,7 +305,7 @@ ch_enum_frmsizes(struct ch_device *device)
     }
 
     frmsize.index = 0;
-    while (ch_ioctl(device->fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0)
+    while (ch_ioctl(device, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0)
 	frmsizes->frmsizes[frmsize.index++] = (struct ch_rect) {
 	    frmsize.discrete.width,
 	    frmsize.discrete.height
@@ -402,7 +406,7 @@ ch_set_fmt(struct ch_device *device)
     fmt.fmt.pix.field = V4L2_FIELD_NONE;
     fmt.fmt.pix.bytesperline = 0;
 
-    if (ch_ioctl(device->fd, VIDIOC_S_FMT, &fmt) == -1) {
+    if (ch_ioctl(device, VIDIOC_S_FMT, &fmt) == -1) {
 	fprintf(stderr, "Could not set output format.\n");
 	return (-1);
     }
@@ -420,7 +424,7 @@ ch_init_stream(struct ch_device *device)
     req.memory = V4L2_MEMORY_MMAP;
 
     // Request a number of buffers.
-    if (ch_ioctl(device->fd, VIDIOC_REQBUFS, &req) == -1) {
+    if (ch_ioctl(device, VIDIOC_REQBUFS, &req) == -1) {
 	fprintf(stderr, "Failed to request buffers.\n");
 	return (-1);
     }
@@ -446,7 +450,7 @@ ch_init_stream(struct ch_device *device)
 	buf.memory = V4L2_MEMORY_MMAP;
 	buf.index = idx;
 
-	if (ch_ioctl(device->fd, VIDIOC_QUERYBUF, &buf) == -1) {
+	if (ch_ioctl(device, VIDIOC_QUERYBUF, &buf) == -1) {
 	    fprintf(stderr, "Failed to query buffers.\n");
 	    goto error;
 	}
@@ -530,7 +534,7 @@ ch_start_stream(struct ch_device *device)
 	buf.memory = V4L2_MEMORY_MMAP;
 	buf.index = idx;
 
-	if (ch_ioctl(device->fd, VIDIOC_QBUF, &buf) == -1) {
+	if (ch_ioctl(device, VIDIOC_QBUF, &buf) == -1) {
 	    fprintf(stderr, "Failed to request buffer.\n");
 	    return (-1);
 	}
@@ -539,7 +543,7 @@ ch_start_stream(struct ch_device *device)
     // Start streaming.
     enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
-    if (ch_ioctl(device->fd, VIDIOC_STREAMON, &type) == -1) {
+    if (ch_ioctl(device, VIDIOC_STREAMON, &type) == -1) {
 	fprintf(stderr, "Failed to start stream.\n");
 
 	return (-1);
@@ -552,9 +556,12 @@ ch_start_stream(struct ch_device *device)
 int
 ch_stop_stream(struct ch_device *device)
 {
+    if (!device->stream)
+	return (0);
+
     enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
-    if (ch_ioctl(device->fd, VIDIOC_STREAMOFF, &type) == -1) {
+    if (ch_ioctl(device, VIDIOC_STREAMOFF, &type) == -1) {
 	fprintf(stderr, "Failed to stop stream.\n");
 	return (-1);
     }
@@ -579,6 +586,7 @@ ch_stream(struct ch_device *device, uint32_t num_frames,
     // Iterate for number of frames requested.
     size_t n;
     for (n = 0; (num_frames != 0) ? n < num_frames : 1; n++) {
+
 	// Wait on select for a new frame.
 	fd_set fds;
 	FD_ZERO(&fds);
@@ -604,7 +612,7 @@ ch_stream(struct ch_device *device, uint32_t num_frames,
 	buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	buf.memory = V4L2_MEMORY_MMAP;
 
-	if ((r = ch_ioctl(device->fd, VIDIOC_DQBUF, &buf)) == -1) {
+	if ((r = ch_ioctl(device, VIDIOC_DQBUF, &buf)) == -1) {
 	    fprintf(stderr, "Failure dequeuing buffer.\n");
 	    break;
 	}
@@ -634,11 +642,16 @@ ch_stream(struct ch_device *device, uint32_t num_frames,
 	    break;
 
 	// Callback.
-	if ((r = callback(&device->out_buffer)) == -1)
+	pthread_mutex_lock(&device->out_mutex);
+	if ((r = callback(&device->out_buffer)) == -1) {
+	    pthread_mutex_unlock(&device->out_mutex);
 	    break;
+	}
 
-	// Requeue buffer.
-	if ((r = ch_ioctl(device->fd, VIDIOC_QBUF, &buf)) == -1) {
+	pthread_mutex_unlock(&device->out_mutex);
+
+        // Queue buffer.
+	if ((r = ch_ioctl(device, VIDIOC_QBUF, &buf)) == -1) {
 	    fprintf(stderr, "Failed requeuing buffer.\n");
 	    break;
 	}
