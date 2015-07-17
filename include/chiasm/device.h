@@ -1,6 +1,10 @@
 #ifndef CHIASM_DEVICE_H_
 #define CHIASM_DEVICE_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Converts a pixelformat character code to a null-terminated string.
  *
@@ -125,5 +129,9 @@ int ch_stop_stream(struct ch_device *device);
  */
 int ch_stream(struct ch_device *device, uint32_t num_frames,
 	      int (*callback)(struct ch_frmbuf *frm));
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

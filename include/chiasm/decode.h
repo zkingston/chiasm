@@ -1,6 +1,10 @@
 #ifndef CHIASM_IMAGE_H_
 #define CHIASM_IMAGE_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <setjmp.h>
 
 #include <jpeglib.h>
@@ -27,5 +31,9 @@ int ch_YUYV_to_RGB(const struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb);
  * @return None.
  */
 int ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

@@ -1,6 +1,10 @@
 #ifndef CHIASM_H_
 #define CHIASM_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
@@ -55,5 +59,9 @@ struct ch_device {
 
 #include <chiasm/device.h>
 #include <chiasm/decode.h>
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
