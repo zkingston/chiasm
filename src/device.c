@@ -477,9 +477,50 @@ error:
     return (-1);
 }
 
+/**
+ * @brief Allocate output RGB image buffer.
+ *
+ * @param  device Device to allocate buffer for.
+ * @return 0 on success, -1 on failure.
+ */
+static int
+ch_init_outbuf(struct ch_device *device)
+{
+   // Allocate output buffer.
+    device->out_buffer.length =
+	3 * device->framesize.width * device->framesize.height;
+
+    device->out_buffer.start =
+	ch_calloc(device->out_buffer.length, sizeof(uint8_t));
+
+    if (device->out_buffer.start == NULL) {
+	device->out_buffer.length = 0;
+	return (-1);
+    }
+
+    return (0);
+}
+
+/**
+ * @brief Deallocate output RGB image buffer.
+ *
+ * @param device Device to deallocate buffer for.
+ * @return None.
+ */
+static void
+ch_destroy_outbuf(struct ch_device *device)
+{
+    free(device->out_buffer.start);
+    device->out_buffer.length = 0;
+}
+
 int
 ch_start_stream(struct ch_device *device)
 {
+    // Initialize output buffer.
+    if (ch_init_outbuf(device) == -1)
+	return (-1);
+
     // Query each buffer to be filled.
     size_t idx;
     for (idx = 0; idx < device->num_buffers; idx++) {
@@ -500,6 +541,7 @@ ch_start_stream(struct ch_device *device)
 
     if (ch_ioctl(device->fd, VIDIOC_STREAMON, &type) == -1) {
 	fprintf(stderr, "Failed to start stream.\n");
+
 	return (-1);
     }
 
@@ -517,6 +559,9 @@ ch_stop_stream(struct ch_device *device)
 	return (-1);
     }
 
+    // Destroy output buffer.
+    ch_destroy_outbuf(device);
+
     device->stream = false;
     return (0);
 }
@@ -528,16 +573,6 @@ ch_stream(struct ch_device *device, uint32_t num_frames,
     // Initialize stream if not already started.
     if (!device->stream)
 	ch_start_stream(device);
-
-    // Allocate output buffer.
-    device->out_buffer.length = 3 *
-	device->framesize.width * device->framesize.height;
-    device->out_buffer.start = ch_calloc(device->out_buffer.length,
-					 sizeof(uint8_t));
-    if (device->out_buffer.start == NULL) {
-	device->out_buffer.length = 0;
-	return (-1);
-    }
 
     int r = 0;
 
@@ -581,18 +616,22 @@ ch_stream(struct ch_device *device, uint32_t num_frames,
 	    break;
 	}
 
+	// Convert input image to basic 24-bit RGB array.
 	switch (device->pixelformat) {
 	case V4L2_PIX_FMT_YUYV:
-	    ch_YUYV_to_RGB(&device->in_buffers[buf.index], &device->out_buffer);
+	    r = ch_YUYV_to_RGB(&device->in_buffers[buf.index], &device->out_buffer);
 	    break;
 	case V4L2_PIX_FMT_MJPEG:
-	    ch_MJPG_to_RGB(&device->in_buffers[buf.index], &device->out_buffer);
+	    r = ch_MJPG_to_RGB(&device->in_buffers[buf.index], &device->out_buffer);
 	    break;
 	default:
 	    fprintf(stderr, "Image format not supported for callbacks.\n");
 	    r = -1;
-	    goto exit;
+	    break;
 	}
+
+	if (r == -1)
+	    break;
 
 	// Callback.
 	if ((r = callback(&device->out_buffer)) == -1)
@@ -605,10 +644,6 @@ ch_stream(struct ch_device *device, uint32_t num_frames,
 	}
     }
 
-exit:
-    // Deallocate buffer.
-    free(device->out_buffer.start);
-    device->out_buffer.length = 0;
-
+    ch_stop_stream(device);
     return (r);
 }
