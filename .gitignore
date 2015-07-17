@@ -35,3 +35,8 @@
 # Temporary files
 *~
 *#*
+
+# Image files
+*.jpg
+*.rgb
+*.yuv
