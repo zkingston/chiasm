@@ -74,7 +74,7 @@ ch_pixfmt_to_string(uint32_t pixfmt, char *buf)
 }
 
 inline uint32_t
-ch_string_to_pixfmt(char *buf)
+ch_string_to_pixfmt(const char *buf)
 {
     uint32_t pixfmt = 0;
 
