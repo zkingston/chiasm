@@ -20,6 +20,8 @@ extern "C" {
 #define CH_DEFAULT_TIMEOUT   2.0
 #define CH_DEFAULT_NUMFRAMES 0
 
+#define CH_CLEAR(x)  (memset((x) , 0, sizeof(*(x))))
+
 struct ch_rect {
     uint32_t width;
     uint32_t height;

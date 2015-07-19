@@ -16,6 +16,7 @@
 
 #include <chiasm.h>
 
+
 /**
  * @brief Robust wrapper around ioctl.
  *
@@ -116,6 +117,7 @@ static int
 ch_validate_device(struct ch_device *device)
 {
     struct v4l2_capability caps;
+    CH_CLEAR(&caps);
 
     // Query device for capabilities.
     if (ch_ioctl(device, VIDIOC_QUERYCAP, &caps) == -1)
@@ -271,6 +273,7 @@ ch_close_device(struct ch_device *device)
 
     // Destroy allocated output buffer if it exists.
     ch_destroy_outbuf(device);
+    device->stream = false;
 
     // Only close file-descriptor if still open.
     if (device->fd > 0) {
@@ -281,7 +284,6 @@ ch_close_device(struct ch_device *device)
         }
 
         device->fd = 0;
-        device->stream = false;
     }
 
     return (0);
@@ -292,6 +294,7 @@ ch_enum_fmts(struct ch_device *device)
 {
     // Find maximum format index.
     struct v4l2_fmtdesc fmtdesc;
+    CH_CLEAR(&fmtdesc);
 
     fmtdesc.index = 0;
     fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -332,6 +335,7 @@ ch_enum_frmsizes(struct ch_device *device)
 {
     // Find maximum size index.
     struct v4l2_frmsizeenum frmsize;
+    CH_CLEAR(&frmsize);
 
     frmsize.index = 0;
     frmsize.pixel_format = device->pixelformat;
@@ -452,6 +456,7 @@ ch_set_fmt(struct ch_device *device)
 
     // Set format and framesize on device.
     struct v4l2_format fmt;
+    CH_CLEAR(&fmt);
 
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     fmt.fmt.pix.width = device->framesize.width;
@@ -472,6 +477,7 @@ int
 ch_init_stream(struct ch_device *device)
 {
     struct v4l2_requestbuffers req;
+    CH_CLEAR(&req);
 
     req.count = device->num_buffers;
     req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -499,6 +505,7 @@ ch_init_stream(struct ch_device *device)
     size_t idx;
     for (idx = 0; idx < req.count; idx++) {
         struct v4l2_buffer buf;
+        CH_CLEAR(&buf);
 
         buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         buf.memory = V4L2_MEMORY_MMAP;
@@ -551,6 +558,7 @@ ch_start_stream(struct ch_device *device)
     size_t idx;
     for (idx = 0; idx < device->num_buffers; idx++) {
         struct v4l2_buffer buf;
+        CH_CLEAR(&buf);
 
         buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         buf.memory = V4L2_MEMORY_MMAP;
@@ -628,6 +636,7 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
 
         // Dequeue buffer.
         struct v4l2_buffer buf;
+        CH_CLEAR(&buf);
 
         buf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
         buf.memory = V4L2_MEMORY_MMAP;

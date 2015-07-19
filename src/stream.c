@@ -36,11 +36,11 @@ signal_handler(int signal)
 static int
 stream_callback(struct ch_frmbuf *frm)
 {
-    fwrite(frm->start, frm->length, 1, stdout);
-    fflush(stdout);
-
-    fprintf(stderr, ".");
-    fflush(stderr);
+//     fwrite(frm->start, frm->length, 1, stdout);
+//     fflush(stdout);
+//
+//     fprintf(stderr, ".");
+//     fflush(stderr);
 
     return (0);
 }
@@ -189,7 +189,6 @@ main(int argc, char *argv[])
 
     // Install signal handlers to clean up and exit nicely.
     signal(SIGINT, signal_handler);
-    signal(SIGKILL, signal_handler);
 
     int r = 0;
     if ((r = ch_open_device(&device)) == -1)
