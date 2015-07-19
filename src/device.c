@@ -595,7 +595,7 @@ ch_stop_stream(struct ch_device *device)
 }
 
 int
-ch_stream(struct ch_device *device, uint32_t num_frames,
+ch_stream(struct ch_device *device, uint32_t n_frames,
         int (*callback)(struct ch_frmbuf *frm))
 {
     // Initialize stream if not already started.
@@ -606,7 +606,7 @@ ch_stream(struct ch_device *device, uint32_t num_frames,
 
     // Iterate for number of frames requested.
     size_t n;
-    for (n = 0; (num_frames != 0) ? n < num_frames : 1; n++) {
+    for (n = 0; ((n_frames != 0) ? n < n_frames : 1) && device->stream; n++) {
         // Wait on select for a new frame.
         fd_set fds;
         FD_ZERO(&fds);
