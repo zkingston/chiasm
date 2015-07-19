@@ -35,6 +35,8 @@
 # Temporary files
 *~
 *#*
+*.swp
+*.swo
 
 # Image files
 *.jpg
