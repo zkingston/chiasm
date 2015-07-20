@@ -602,12 +602,6 @@ ch_stop_stream(struct ch_device *device)
     return (0);
 }
 
-struct ch_stream_args {
-    struct ch_device *device;
-    uint32_t n_frames;
-    int (*callback)(struct ch_frmbuf *frm);
-};
-
 static void *
 ch_stream_async_func(void *_args)
 {

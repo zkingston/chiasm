@@ -61,6 +61,12 @@ struct ch_device {
     pthread_t thread;
 };
 
+struct ch_stream_args {
+    struct ch_device *device;
+    uint32_t n_frames;
+    int (*callback)(struct ch_frmbuf *frm);
+};
+
 #include <chiasm/device.h>
 #include <chiasm/decode.h>
 
