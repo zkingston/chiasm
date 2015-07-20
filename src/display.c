@@ -34,8 +34,14 @@ timer_callback(GtkWidget *widget)
 static gboolean
 on_expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer data)
 {
+    // Please stop shouting, GCC.
+    event = (GdkEventExpose *) event;
+    data = (gpointer) data;
+
     if (buf == NULL)
 	return (FALSE);
+
+    pthread_mutex_lock(&device.out_mutex);
 
     gdk_draw_rgb_image(
 	widget->window,
@@ -49,10 +55,10 @@ on_expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer data)
 	device.framesize.width * 3
     );
 
+    pthread_mutex_unlock(&device.out_mutex);
+
     return (TRUE);
 }
-
-// TODO: Parse command-line args
 
 int
 main(int argc, char *argv[])

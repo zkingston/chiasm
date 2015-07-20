@@ -1,0 +1,16 @@
+* Major Features
+Use dynamic library plugins for callbacks in streaming.
+
+List control features and provide an interface for modifying them.
+
+Decode video streams using libavcodec.
+
+* Minor Features
+GUI Stuff
+   - Error checking for GUI calls.
+   - Destroy handler with webcam shutdown.
+   - Investigate other methods of drawing the RGB buffer.
+   - Window resizing.
+
+Threaded Streaming
+   - Check error robustness

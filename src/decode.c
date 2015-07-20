@@ -146,6 +146,9 @@ ch_YUYV_to_RGB(const struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb)
 int
 ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
 {
+    // TODO: Remove when done.
+    rgb = (struct ch_frmbuf *) rgb;
+
     fprintf(stderr, "Registering codecs.\n");
 
     // Register all codecs.

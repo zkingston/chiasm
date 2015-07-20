@@ -1,13 +1,13 @@
-CC       = gcc
-CFLAGS   = -Wall -Wextra -g3 -O3 -Iinclude `pkg-config --cflags gtk+-2.0`
-LDFLAGS  = -ljpeg -lavutil -lavformat -lavcodec -lpthread
+CC      = gcc
+CFLAGS  = -Wall -Wextra -g3 -O3 -Iinclude `pkg-config --cflags gtk+-2.0`
+LDFLAGS = -ljpeg -lavutil -lavformat -lavcodec -lpthread
 
-BINDIR   = bin
-SRCDIR   = src
+BINDIR  = bin
+SRCDIR  = src
 
-LIBSRCS  = $(SRCDIR)/device.c $(SRCDIR)/decode.c
-LIBOBJS  = $(patsubst %.c, %.o, $(LIBSRCS))
-LIBRARY  = libchiasm.a
+LIBSRCS = $(SRCDIR)/device.c $(SRCDIR)/decode.c
+LIBOBJS = $(patsubst %.c, %.o, $(LIBSRCS))
+LIBRARY = libchiasm.a
 
 .PHONY: all
 all: $(LIBRARY) display stream
@@ -27,5 +27,6 @@ stream: src/stream.o $(LIBRARY)
 	$(CC) -o $(BINDIR)/$@ $(CFLAGS) $< $(LIBRARY) $(LDFLAGS)
 
 clean:
+	rm $(LIBRARY)
 	rm -r $(BINDIR)/*
 	rm $(SRCDIR)/*.o

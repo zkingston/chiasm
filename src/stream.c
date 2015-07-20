@@ -36,9 +36,9 @@ signal_handler(int signal)
 static int
 stream_callback(struct ch_frmbuf *frm)
 {
-//     fwrite(frm->start, frm->length, 1, stdout);
-//     fflush(stdout);
-//
+    fwrite(frm->start, frm->length, 1, stdout);
+    fflush(stdout);
+
     fprintf(stderr, ".");
     fflush(stderr);
 
