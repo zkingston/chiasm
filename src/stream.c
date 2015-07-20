@@ -39,8 +39,8 @@ stream_callback(struct ch_frmbuf *frm)
 //     fwrite(frm->start, frm->length, 1, stdout);
 //     fflush(stdout);
 //
-//     fprintf(stderr, ".");
-//     fflush(stderr);
+    fprintf(stderr, ".");
+    fflush(stderr);
 
     return (0);
 }
@@ -98,12 +98,17 @@ main(int argc, char *argv[])
     ch_init_device(&device);
 
     int opt;
-    char *opts = "n:t:b:d:f:g:s:lh?";
-    while ((opt = getopt(argc, argv, opts)) != -1) {
+    while ((opt = getopt(argc, argv, CH_OPTS "n:lh?")) != -1) {
         switch (opt) {
-        case 'd':
-            device.name = optarg;
-            break;
+	case 'd':
+	case 't':
+	case 'b':
+	case 'f':
+	case 'g':
+	    if (ch_parse_device_opt(opt, optarg, &device) == -1)
+		return (-1);
+
+	    break;
 
         case 'l':
             list = true;
@@ -113,47 +118,6 @@ main(int argc, char *argv[])
             n_frames = strtoul(optarg, NULL, 10);
             if (errno == EINVAL || errno == ERANGE) {
                 fprintf(stderr, "Invalid number of frames %s.\n", optarg);
-                return (-1);
-            }
-
-            break;
-
-        case 't': {
-            char *ptr;
-            double r = strtod(optarg, &ptr);
-
-            if (r == 0 && ptr == optarg) {
-                fprintf(stderr, "Invalid timeout.\n");
-                return (-1);
-            }
-
-            device.timeout = ch_sec_to_timeval(r);
-            break;
-        }
-
-        case 'b':
-            device.num_buffers = (uint32_t) strtoul(optarg, NULL, 10);
-            if (errno == EINVAL || errno == ERANGE || device.num_buffers == 0) {
-                fprintf(stderr, "Invalid value in buffer count argument %s.\n",
-                        optarg);
-                return (-1);
-            }
-
-            break;
-
-        case 'f':
-            if (strnlen(optarg, 5) > 4) {
-                fprintf(stderr, "Pixel formats must be at most 4 characters.\n");
-                return (-1);
-            }
-
-            device.pixelformat = ch_string_to_pixfmt(optarg);
-            break;
-
-        case 'g':
-            if (sscanf(optarg, "%ux%u",
-                       &device.framesize.width, &device.framesize.height) != 2) {
-                fprintf(stderr, "Error parsing geometry string.\n");
                 return (-1);
             }
 

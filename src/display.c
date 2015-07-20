@@ -11,6 +11,7 @@ struct ch_frmbuf *buf = NULL;
 static int
 stream_callback(struct ch_frmbuf *frm)
 {
+    fprintf(stderr, ".");
     buf = frm;
     return (0);
 }
@@ -34,18 +35,16 @@ on_expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer data)
     if (buf == NULL)
 	return (FALSE);
 
-    int width, height;
-    gtk_window_get_size(GTK_WINDOW(widget), &width, &height);
-
     gdk_draw_rgb_image(widget->window,
 		       widget->style->fg_gc[GTK_STATE_NORMAL],
 		       0,
 		       0,
-		       width,
-		       height,
+		       device.framesize.width,
+		       device.framesize.height,
 		       GDK_RGB_DITHER_MAX,
 		       buf->start,
-		       width * 3);
+		       device.framesize.width * 3);
+
 
     return (TRUE);
 }
@@ -73,10 +72,19 @@ main(int argc, char *argv[])
     // TODO: Investigate robust error handling on GUI calls.
 
     // Basic setup.
-    gtk_init(&argc, &argv);
+    gtk_init(0, NULL);
+    gdk_rgb_init();
+
     GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    GtkWidget *drawRGB = gtk_drawing_area_new();
+    gtk_drawing_area_size(GTK_DRAWING_AREA(drawRGB),
+			  device.framesize.width, device.framesize.height);
+
+    gtk_container_add(GTK_CONTAINER(window), drawRGB);
+
     gtk_window_set_default_size(GTK_WINDOW(window),
 				device.framesize.width, device.framesize.height);
+
 
     // Register destroy signal.
     // TODO: Have destroy signal go into handler to shutdown webcam.
@@ -84,7 +92,7 @@ main(int argc, char *argv[])
                      G_CALLBACK(gtk_main_quit), NULL);
 
     // Register repaint signal.
-    g_signal_connect(G_OBJECT(window), "expose-event",
+    g_signal_connect(G_OBJECT(drawRGB), "expose-event",
                      G_CALLBACK(on_expose_event), NULL);
 
     // TODO: obtain framerate from device.

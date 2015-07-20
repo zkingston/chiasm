@@ -16,6 +16,61 @@
 
 #include <chiasm.h>
 
+int
+ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
+{
+    switch (opt) {
+    case 'd':
+	device->name = optarg;
+	break;
+
+    case 't': {
+	char *ptr;
+	double r = strtod(optarg, &ptr);
+
+	if (r == 0 && ptr == optarg) {
+	    fprintf(stderr, "Invalid timeout.\n");
+	    return (-1);
+	}
+
+	device->timeout = ch_sec_to_timeval(r);
+	break;
+    }
+
+    case 'b':
+	device->num_buffers = (uint32_t) strtoul(optarg, NULL, 10);
+	if (errno == EINVAL || errno == ERANGE || device->num_buffers == 0) {
+	    fprintf(stderr, "Invalid value in buffer count argument %s.\n",
+		    optarg);
+	    return (-1);
+	}
+
+	break;
+
+    case 'f':
+	if (strnlen(optarg, 5) > 4) {
+	    fprintf(stderr, "Pixel formats must be at most 4 characters.\n");
+	    return (-1);
+	}
+
+	device->pixelformat = ch_string_to_pixfmt(optarg);
+	break;
+
+    case 'g':
+	if (sscanf(optarg, "%ux%u",
+		   &device->framesize.width, &device->framesize.height) != 2) {
+	    fprintf(stderr, "Error parsing geometry string.\n");
+	    return (-1);
+	}
+
+	break;
+
+    default:
+	break;
+    }
+
+    return (0);
+}
 
 /**
  * @brief Robust wrapper around ioctl.
@@ -616,8 +671,10 @@ ch_stream_async_func(void *_args)
     struct ch_stream_args args = *((struct ch_stream_args *) _args);
     free(_args);
 
-    int r = ch_stream(args.device, args.n_frames, args.callback);
-    pthread_exit(0);
+    int *r = ch_calloc(1, sizeof(int));
+    *r = ch_stream(args.device, args.n_frames, args.callback);
+
+    pthread_exit(r);
 }
 
 int
@@ -646,18 +703,32 @@ ch_stream_async(struct ch_device *device, uint32_t n_frames,
 int
 ch_stream_async_join(struct ch_device *device)
 {
-    if (device->thread) {
-	ch_stop_stream(device);
+    int r = 0;
+    int *rp = NULL;
 
-	int r = pthread_join(device->thread, NULL);
-	if (r != 0) {
+    // TODO: Test error handling here.
+    if (device->thread) {
+	if ((r = ch_stop_stream(device)) == -1)
+	    goto exit;
+
+	if (pthread_join(device->thread, (void **) &rp) != 0) {
 	    fprintf(stderr, "Failed to join stream thread. %d: %s.\n",
 		    r, strerror(r));
-	    return (-1);
+	    r = -1;
+	    goto exit;
+	}
+
+	if ((r = *rp) == -1) {
+	    fprintf(stderr, "Error in stream thread on close.\n");
+	    goto exit;
 	}
     }
 
-    return (0);
+exit:
+    if (rp)
+	free(rp);
+
+    return (r);
 }
 
 int

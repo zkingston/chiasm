@@ -12,6 +12,8 @@ extern "C" {
 
 #include <sys/time.h>
 
+#define CH_OPTS "d:t:b:f:g:"
+
 #define CH_DEFAULT_DEVICE    "/dev/video0"
 #define CH_DEFAULT_FORMAT    "YUYV"
 #define CH_DEFAULT_WIDTH     320
@@ -20,7 +22,7 @@ extern "C" {
 #define CH_DEFAULT_TIMEOUT   2.0
 #define CH_DEFAULT_NUMFRAMES 0
 
-#define CH_CLEAR(x)  (memset((x) , 0, sizeof(*(x))))
+#define CH_CLEAR(x) (memset((x) , 0, sizeof(*(x))))
 
 struct ch_rect {
     uint32_t width;

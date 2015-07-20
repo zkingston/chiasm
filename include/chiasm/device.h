@@ -6,6 +6,17 @@ extern "C" {
 #endif
 
 /**
+ * @brief Parses a command line option and switch for a device parameter.
+ *        Accepted parameters are detailed in CH_OPTS.
+ *
+ * @param opt Character representing option.
+ * @param optarg Argument.
+ * @param device Device to fill in parameter.
+ * @return 0 on successful parse, -1 on failure.
+ */
+int ch_parse_device_opt(int opt, char *optarg, struct ch_device *device);
+
+/**
  * @brief Converts a pixelformat character code to a null-terminated string.
  *
  * @param pixfmt Pixel format character code.
