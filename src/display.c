@@ -6,7 +6,7 @@
 #include <chiasm.h>
 
 struct ch_device device;
-struct ch_frmbuf *buf;
+struct ch_frmbuf *buf = NULL;
 
 static int
 stream_callback(struct ch_frmbuf *frm)
@@ -26,9 +26,27 @@ timer_callback(GtkWidget *widget)
     return (TRUE);
 }
 
+// TODO: Investiage double-buffering, or some form of buffered imaging.
+
 static gboolean
 on_expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer data)
 {
+    if (buf == NULL)
+	return (FALSE);
+
+    int width, height;
+    gtk_window_get_size(GTK_WINDOW(widget), &width, &height);
+
+    gdk_draw_rgb_image(widget->window,
+		       widget->style->fg_gc[GTK_STATE_NORMAL],
+		       0,
+		       0,
+		       width,
+		       height,
+		       GDK_RGB_DITHER_MAX,
+		       buf->start,
+		       width * 3);
+
     return (TRUE);
 }
 
@@ -57,6 +75,8 @@ main(int argc, char *argv[])
     // Basic setup.
     gtk_init(&argc, &argv);
     GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_default_size(GTK_WINDOW(window),
+				device.framesize.width, device.framesize.height);
 
     // Register destroy signal.
     // TODO: Have destroy signal go into handler to shutdown webcam.
@@ -67,6 +87,7 @@ main(int argc, char *argv[])
     g_signal_connect(G_OBJECT(window), "expose-event",
                      G_CALLBACK(on_expose_event), NULL);
 
+    // TODO: obtain framerate from device.
     // Register timer event.
     g_timeout_add(33, (GSourceFunc) timer_callback, (gpointer) window);
     timer_callback(window);
