@@ -37,16 +37,17 @@ on_expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer data)
     if (buf == NULL)
 	return (FALSE);
 
-    gdk_draw_rgb_image(widget->window,
-		       widget->style->fg_gc[GTK_STATE_NORMAL],
-		       0,
-		       0,
-		       device.framesize.width,
-		       device.framesize.height,
-		       GDK_RGB_DITHER_MAX,
-		       buf->start,
-		       device.framesize.width * 3);
-
+    gdk_draw_rgb_image(
+	widget->window,
+	widget->style->fg_gc[GTK_STATE_NORMAL],
+	0,
+	0,
+	device.framesize.width,
+	device.framesize.height,
+	GDK_RGB_DITHER_MAX,
+	buf->start,
+	device.framesize.width * 3
+    );
 
     return (TRUE);
 }
