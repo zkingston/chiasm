@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <unistd.h>
 
 #include <gtk/gtk.h>
 
@@ -55,9 +57,44 @@ int
 main(int argc, char *argv[])
 {
     int n_frames = 0;
-
-    // Just use defaults for now...
     ch_init_device(&device);
+
+    int opt;
+    while ((opt = getopt(argc, argv, CH_OPTS "n:h?")) != -1) {
+        switch (opt) {
+	case 'd':
+	case 't':
+	case 'b':
+	case 'f':
+	case 'g':
+	    if (ch_parse_device_opt(opt, optarg, &device) == -1)
+		return (-1);
+
+	    break;
+
+	case 'n':
+            n_frames = strtoul(optarg, NULL, 10);
+            if (errno == EINVAL || errno == ERANGE) {
+                fprintf(stderr, "Invalid number of frames %s.\n", optarg);
+                return (-1);
+            }
+
+            break;
+
+        case 'h':
+        case '?':
+        default:
+            printf(
+                "Usage: %s [OPTIONS]\n"
+                "Options:\n"
+		CH_HELP
+                " -?,h Show this help.\n",
+                argv[0]
+            );
+
+            return (0);
+	}
+    }
 
     // Super hacky. Will do error handling gracefully later.
     if (ch_open_device(&device) == -1)
