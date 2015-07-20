@@ -206,6 +206,7 @@ main(int argc, char *argv[])
         goto cleanup;
 
 cleanup:
+    ch_stop_stream(&device);
     ch_close_device(&device);
 
     return (r);

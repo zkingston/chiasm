@@ -45,8 +45,13 @@ ch_ioctl(struct ch_device *device, int request, void *arg)
             fprintf(stderr, "ioctl failure. %d: %s\n", errno, strerror(errno));
 
         // If device no longer exists, close the device.
-        if (errno == ENODEV)
+        if (errno == ENODEV) {
             ch_close_device(device);
+
+	    // Clean up allocated structures.
+	    ch_stop_stream(device);
+	}
+
 
         return (-1);
     }
@@ -251,8 +256,10 @@ ch_open_device(struct ch_device *device)
     }
 
     // Verify device can stream video.
-    if (ch_validate_device(device) == -1)
+    if (ch_validate_device(device) == -1) {
+	ch_close_device(device);
         goto error;
+    }
 
     return (0);
 
@@ -264,17 +271,6 @@ error:
 int
 ch_close_device(struct ch_device *device)
 {
-    // If memory-mapped regions are initialized, unmap them.
-    if (device->in_buffers)
-        ch_unmap_buffers(device);
-
-    free(device->in_buffers);
-    device->in_buffers = NULL;
-
-    // Destroy allocated output buffer if it exists.
-    ch_destroy_outbuf(device);
-    device->stream = false;
-
     // Only close file-descriptor if still open.
     if (device->fd > 0) {
         if (close(device->fd) == -1) {
@@ -585,20 +581,31 @@ ch_start_stream(struct ch_device *device)
 int
 ch_stop_stream(struct ch_device *device)
 {
+    // If device is not streaming, do nothing.
     if (!device->stream)
         return (0);
 
-    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    // Send command to device to stop stream.
+    if (device->fd > 0) {
+	enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
-    if (ch_ioctl(device, VIDIOC_STREAMOFF, &type) == -1) {
-        fprintf(stderr, "Failed to stop stream.\n");
-        return (-1);
+	if (ch_ioctl(device, VIDIOC_STREAMOFF, &type) == -1) {
+	    fprintf(stderr, "Failed to stop stream.\n");
+	    return (-1);
+	}
     }
+
+    // Destroy input buffers.
+    if (device->in_buffers)
+        ch_unmap_buffers(device);
+
+    free(device->in_buffers);
+    device->in_buffers = NULL;
 
     // Destroy output buffer.
     ch_destroy_outbuf(device);
-
     device->stream = false;
+
     return (0);
 }
 
@@ -640,7 +647,6 @@ ch_stream_async_join(struct ch_device *device)
 {
     ch_stop_stream(device);
 
-
     int r = pthread_join(device->thread, NULL);
     if (r != 0) {
         fprintf(stderr, "Failed to join stream thread. %d: %s.\n",
@@ -656,8 +662,15 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
         int (*callback)(struct ch_frmbuf *frm))
 {
     // Initialize stream if not already started.
-    if (!device->stream)
-        ch_start_stream(device);
+    if (device->stream) {
+	fprintf(stderr, "Device is already streaming.\n");
+	return (-1);
+    }
+
+    if (ch_start_stream(device) == -1) {
+	fprintf(stderr, "Failed to start stream.\n");
+	return (-1);
+    }
 
     int r = 0;
 

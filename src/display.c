@@ -19,6 +19,8 @@ static gboolean
 timer_callback(GtkWidget *widget)
 {
     if (widget->window == NULL)
+	return (FALSE);
+
     gtk_widget_queue_draw(widget);
 
     return (TRUE);
@@ -35,7 +37,6 @@ main(int argc, char *argv[])
 {
     int n_frames = 0;
     ch_init_device(&device);
-    device.name = "/dev/video1";
 
     // Super hacky.
     if (ch_open_device(&device) == -1)
@@ -51,19 +52,21 @@ main(int argc, char *argv[])
     gtk_init(&argc, &argv);
     GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
+    // Register destroy signal.
     g_signal_connect(G_OBJECT(window), "destroy",
                      G_CALLBACK(gtk_main_quit), NULL);
 
-    gtk_widget_set_app_paintable(window, TRUE);
-    gtk_widget_show_all(window);
-
-
+    // Register repaint signal.
     g_signal_connect(G_OBJECT(window), "expose-event",
                      G_CALLBACK(on_expose_event), NULL);
 
+    // Register timer event.
     g_timeout_add(33, (GSourceFunc) timer_callback, (gpointer) window);
-
     timer_callback(window);
+
+    // Show window and begin mainloop.
+    gtk_widget_set_app_paintable(window, TRUE);
+    gtk_widget_show_all(window);
 
     gtk_main();
 
