@@ -129,21 +129,11 @@ main(int argc, char *argv[])
             printf(
                 "Usage: %s [OPTIONS]\n"
                 "Options:\n"
-                " -d   Device name. \"%s\" by default.\n"
-                " -f   Image format code. %s by default.\n"
-                " -g   Frame geometry in <w>x<h> format. %ux%u by default.\n"
-                " -b   Specify number of buffers to request. %u by default.\n"
-                " -t   Timeout in seconds. %f by default.\n"
+		CH_HELP
                 " -n   Number of frames to read. 0 = Infinite. %d by default.\n"
                 " -l   List formats, resolutions, framerates and exit.\n"
                 " -?,h Show this help.\n",
                 argv[0],
-                CH_DEFAULT_DEVICE,
-                CH_DEFAULT_FORMAT,
-                CH_DEFAULT_WIDTH,
-                CH_DEFAULT_HEIGHT,
-                CH_DEFAULT_BUFNUM,
-                CH_DEFAULT_TIMEOUT,
                 CH_DEFAULT_NUMFRAMES
             );
 

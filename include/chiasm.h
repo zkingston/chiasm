@@ -12,6 +12,9 @@ extern "C" {
 
 #include <sys/time.h>
 
+#define CH_STR2(s) #s
+#define CH_STR(s) CH_STR2(s)
+
 #define CH_OPTS "d:t:b:f:g:"
 
 #define CH_DEFAULT_DEVICE    "/dev/video0"
@@ -21,6 +24,13 @@ extern "C" {
 #define CH_DEFAULT_BUFNUM    5
 #define CH_DEFAULT_TIMEOUT   2.0
 #define CH_DEFAULT_NUMFRAMES 0
+
+#define CH_HELP \
+    " -d   Device name. " CH_STR(CH_DEFAULT_DEVICE) " by default.\n"	\
+    " -f   Image format code. " CH_STR(CH_DEFAULT_FORMAT) " by default.\n" \
+    " -g   Frame geometry in <w>x<h> format. " CH_STR(CH_DEFAULT_WIDTH) "x" CH_STR(CH_DEFAULT_HEIGHT) " by default.\n" \
+    " -b   Specify number of buffers to request. " CH_STR(CH_DEFAULT_BUFNUM) " by default.\n" \
+    " -t   Timeout in seconds. " CH_STR(CH_DEFAULT_TIMEOUT) " by default.\n"
 
 #define CH_CLEAR(x) (memset((x) , 0, sizeof(*(x))))
 
