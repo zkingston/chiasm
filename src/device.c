@@ -228,6 +228,7 @@ ch_init_device(struct ch_device *device)
     device->pixelformat = ch_string_to_pixfmt(CH_DEFAULT_FORMAT);
     device->timeout = ch_sec_to_timeval(CH_DEFAULT_TIMEOUT);
     device->stream = false;
+    device->thread = 0;
 }
 
 int
@@ -645,13 +646,15 @@ ch_stream_async(struct ch_device *device, uint32_t n_frames,
 int
 ch_stream_async_join(struct ch_device *device)
 {
-    ch_stop_stream(device);
+    if (device->thread) {
+	ch_stop_stream(device);
 
-    int r = pthread_join(device->thread, NULL);
-    if (r != 0) {
-        fprintf(stderr, "Failed to join stream thread. %d: %s.\n",
-                r, strerror(r));
-        return (-1);
+	int r = pthread_join(device->thread, NULL);
+	if (r != 0) {
+	    fprintf(stderr, "Failed to join stream thread. %d: %s.\n",
+		    r, strerror(r));
+	    return (-1);
+	}
     }
 
     return (0);
