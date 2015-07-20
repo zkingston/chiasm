@@ -602,6 +602,61 @@ ch_stop_stream(struct ch_device *device)
     return (0);
 }
 
+struct ch_stream_args {
+    struct ch_device *device;
+    uint32_t n_frames;
+    int (*callback)(struct ch_frmbuf *frm);
+};
+
+static void *
+ch_stream_async_func(void *_args)
+{
+    struct ch_stream_args args = *((struct ch_stream_args *) _args);
+    free(_args);
+
+    int r = ch_stream(args.device, args.n_frames, args.callback);
+    pthread_exit(0);
+}
+
+int
+ch_stream_async(struct ch_device *device, uint32_t n_frames,
+        int (*callback)(struct ch_frmbuf *frm))
+{
+    struct ch_stream_args *args;
+    args = ch_calloc(1, sizeof(struct ch_stream_args));
+    if (args == NULL)
+        return (-1);
+
+    args->device = device;
+    args->n_frames = n_frames;
+    args->callback = callback;
+
+    int r = pthread_create(&device->thread, NULL, ch_stream_async_func, args);
+    if (r != 0) {
+        fprintf(stderr, "Failed to create stream thread. %d: %s.\n",
+                r, strerror(r));
+        return (-1);
+    }
+
+    return (0);
+}
+
+int
+ch_stream_async_join(struct ch_device *device)
+{
+    ch_stop_stream(device);
+
+
+    int r = pthread_join(device->thread, NULL);
+    if (r != 0) {
+        fprintf(stderr, "Failed to join stream thread. %d: %s.\n",
+                r, strerror(r));
+        return (-1);
+    }
+
+    return (0);
+}
+
 int
 ch_stream(struct ch_device *device, uint32_t n_frames,
         int (*callback)(struct ch_frmbuf *frm))

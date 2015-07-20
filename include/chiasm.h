@@ -57,6 +57,8 @@ struct ch_device {
 
     struct timeval timeout;
     bool stream;
+
+    pthread_t thread;
 };
 
 #include <chiasm/device.h>
