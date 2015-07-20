@@ -49,6 +49,32 @@ struct ch_frmsizes {
     uint32_t        length;
 };
 
+union ch_ctrl_menu_item {
+    char    name[32];
+    int64_t value;
+};
+
+struct ch_ctrl_menu {
+    union ch_ctrl_menu_item *items;
+    uint32_t length;
+};
+
+struct ch_ctrl {
+    uint32_t id;
+    char     name[32];
+    uint32_t type;
+    int32_t  min;
+    int32_t  max;
+    int32_t  step;
+    int32_t  defval;
+    struct ch_ctrl_menu *menu;
+};
+
+struct ch_ctrls {
+    struct ch_ctrl *ctrls;
+    uint32_t length;
+};
+
 struct ch_frmbuf {
     uint8_t  *start;
     uint32_t  length;

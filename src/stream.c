@@ -89,16 +89,32 @@ list_formats(struct ch_device *device)
     return ((idx == fmts->length) ? 0 : -1);
 }
 
+/**
+ * @brief List the available user controls on a device.
+ *
+ * @param device Device to list the controls for.
+ * @return 0 on success, -1 on failure.
+ */
+static int
+list_ctrls(struct ch_device *device)
+{
+    struct ch_ctrls *ctrls = ch_enum_ctrls(device);
+
+    ch_destroy_ctrls(ctrls);
+    return (0);
+}
+
 int
 main(int argc, char *argv[])
 {
     size_t n_frames = CH_DEFAULT_NUMFRAMES;
     bool list = false;
+    bool ctrl = false;
 
     ch_init_device(&device);
 
     int opt;
-    while ((opt = getopt(argc, argv, CH_OPTS "n:lh?")) != -1) {
+    while ((opt = getopt(argc, argv, CH_OPTS "cn:lh?")) != -1) {
         switch (opt) {
 	case 'd':
 	case 't':
@@ -113,6 +129,10 @@ main(int argc, char *argv[])
         case 'l':
             list = true;
             break;
+
+	case 'c':
+	    ctrl = true;
+	    break;
 
         case 'n':
             n_frames = strtoul(optarg, NULL, 10);
@@ -148,10 +168,16 @@ main(int argc, char *argv[])
     if ((r = ch_open_device(&device)) == -1)
         goto cleanup;
 
-    if (list) {
-        list_formats(&device);
-        goto cleanup;
-    }
+    if (list)
+        if (list_formats(&device) == -1)
+	    goto cleanup;
+
+    if (ctrl)
+	if (list_ctrls(&device) == -1)
+	    goto cleanup;
+
+    if (list || ctrl)
+	goto cleanup;
 
     if ((r = ch_set_fmt(&device)) == -1)
         goto cleanup;

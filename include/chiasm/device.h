@@ -100,6 +100,22 @@ struct ch_frmsizes *ch_enum_frmsizes(struct ch_device *device);
 void ch_destroy_frmsizes(struct ch_frmsizes *frmsizes);
 
 /**
+ * @brief Return a list of all supported controls on a device.
+ *
+ * @param device Device to list controls for.
+ * @return An allocated struct ch_ctrls of all controls available.
+ */
+struct ch_ctrls * ch_enum_ctrls(struct ch_device *device);
+
+/**
+ * @brief Deallocate a struct ch_ctrls created by ch_enum_ctrls.
+ *
+ * @param ctrls Allocated struct ch_ctrls.
+ * @return None.
+ */
+void ch_destroy_ctrls(struct ch_ctrls *ctrls);
+
+/**
  * @brief Sets device format and framesize based on contents of provided struct.
  *
  * @param device Device to set with parameters.

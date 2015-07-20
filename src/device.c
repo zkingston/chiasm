@@ -78,7 +78,7 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
  * @param fd File-descriptor.
  * @param request ioctl request.
  * @param arg Arguments to request.
- * @return 0 on success, -1 on failure.
+ * @return 0 on success, -1 on failure. 1 on EINVAL.
  */
 static inline int
 ch_ioctl(struct ch_device *device, int request, void *arg)
@@ -98,6 +98,8 @@ ch_ioctl(struct ch_device *device, int request, void *arg)
         // No output on EINVAL, used to determine end of enumeration.
         if (errno != EINVAL)
             fprintf(stderr, "ioctl failure. %d: %s\n", errno, strerror(errno));
+	else
+	    return (1);
 
         // If device no longer exists, close the device.
         if (errno == ENODEV) {
@@ -351,8 +353,12 @@ ch_enum_fmts(struct ch_device *device)
     fmtdesc.index = 0;
     fmtdesc.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
-    while (ch_ioctl(device, VIDIOC_ENUM_FMT, &fmtdesc) == 0)
+    int r = 0;
+    while ((r = ch_ioctl(device, VIDIOC_ENUM_FMT, &fmtdesc)) != 1)
         fmtdesc.index++;
+
+    if (r == -1)
+	return (NULL);
 
     // Create storage array and fill.
     struct ch_fmts *fmts = ch_calloc(1, sizeof(struct ch_fmts));
@@ -369,8 +375,13 @@ ch_enum_fmts(struct ch_device *device)
 
     // Reiterate and fill array.
     fmtdesc.index = 0;
-    while (ch_ioctl(device, VIDIOC_ENUM_FMT, &fmtdesc) == 0)
+    while ((r = ch_ioctl(device, VIDIOC_ENUM_FMT, &fmtdesc)) != 1)
         fmts->fmts[fmtdesc.index++] = fmtdesc.pixelformat;
+
+    if (r == -1) {
+	ch_destroy_fmts(fmts);
+	fmts = NULL;
+    }
 
     return (fmts);
 }
@@ -392,8 +403,12 @@ ch_enum_frmsizes(struct ch_device *device)
     frmsize.index = 0;
     frmsize.pixel_format = device->pixelformat;
 
-    while (ch_ioctl(device, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0)
+    int r = 0;
+    while ((r = ch_ioctl(device, VIDIOC_ENUM_FRAMESIZES, &frmsize)) != 1)
         frmsize.index++;
+
+    if (r == -1)
+	return (NULL);
 
     // Only supporting discrete resolutions. Should return on first if not.
     if (frmsize.type != V4L2_FRMSIZE_TYPE_DISCRETE)
@@ -414,11 +429,16 @@ ch_enum_frmsizes(struct ch_device *device)
 
     // Reiterate and fill array.
     frmsize.index = 0;
-    while (ch_ioctl(device, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0)
+    while ((r = ch_ioctl(device, VIDIOC_ENUM_FRAMESIZES, &frmsize)) != 1)
         frmsizes->frmsizes[frmsize.index++] = (struct ch_rect) {
             frmsize.discrete.width,
                 frmsize.discrete.height
         };
+
+    if (r == -1) {
+	ch_destroy_frmsizes(frmsizes);
+	frmsizes = NULL;
+    }
 
     return (frmsizes);
 }
@@ -428,6 +448,63 @@ ch_destroy_frmsizes(struct ch_frmsizes *frmsizes)
 {
     free(frmsizes->frmsizes);
     free(frmsizes);
+}
+
+struct ch_ctrls *
+ch_enum_ctrls(struct ch_device *device)
+{
+    struct v4l2_queryctrl qctrl;
+    CH_CLEAR(&qctrl);
+
+    uint32_t length = 0;
+
+    // Iterate over predefined controls.
+    int r = 0;
+    qctrl.id = V4L2_CID_BASE;
+
+    while ((r = ch_ioctl(device, VIDIOC_QUERYCTRL, &qctrl)) != -1) {
+	// Verify control is not disabled.
+	length++;
+	printf("Control %08X: %s\n", qctrl.flags, qctrl.name);
+
+	if (r == 1 && qctrl.id >= V4L2_CID_LASTP1)
+		break;
+
+	if (qctrl.id == V4L2_CID_LASTP1 - 1)
+	    qctrl.id = V4L2_CID_PRIVATE_BASE - 1;
+
+	qctrl.id++;
+    }
+
+    // Create storage array and fill.
+    struct ch_ctrls *ctrls = ch_calloc(1, sizeof(struct ch_ctrls));
+    if (ctrls == NULL)
+        return (NULL);
+
+    ctrls->length = length;
+
+    ctrls->ctrls = ch_calloc(length, sizeof(struct ch_ctrl));
+    if (ctrls->ctrls == NULL) {
+        free(ctrls);
+        return (NULL);
+    }
+
+    size_t idx;
+
+    return (ctrls);
+
+clean:
+    // Set shorter length to prevent iteration over uninitialized elements.
+    ctrls->length = idx;
+    ch_destroy_ctrls(ctrls);
+
+    return (NULL);
+}
+
+void
+ch_destroy_ctrls(struct ch_ctrls *ctrls)
+{
+    // Remember to iterate over ctrls and clean up menu options
 }
 
 /**

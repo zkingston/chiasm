@@ -151,6 +151,7 @@ ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
 
     fprintf(stderr, "Registering codecs.\n");
 
+    // TODO: Move to initialization of device.
     // Register all codecs.
     av_register_all();
 
