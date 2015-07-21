@@ -91,10 +91,10 @@ ch_error_no(char *buf, int err) {
     char err_buf[100];
     strerror_r(err, err_buf, 100);
 
-    syslog(LOG_ERR, "%s [%d: %s]", buf, err, err_buf);
+    syslog(LOG_ERR, "%s [sd: %s]", buf, err, err_buf);
 
     if (ch_stderr)
-        fprintf(stderr, "%s [%d: %s]\n", buf, err, err_buf);
+        fprintf(stderr, "[CH_ERROR] %s [%d: %s]\n", buf, err, err_buf);
 }
 
 void
@@ -105,8 +105,8 @@ ch_error(char *buf) {
     if (!ch_log_enable)
         ch_enable_log();
 
-    syslog(LOG_ERR, buf);
+    syslog(LOG_ERR, "%s", buf);
 
     if (ch_stderr)
-        fprintf(stderr, "%s\n", buf);
+        fprintf(stderr, "[CH_ERROR] %s\n", buf);
 }
