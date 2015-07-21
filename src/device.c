@@ -98,7 +98,8 @@ ch_ioctl(struct ch_device *device, int request, void *arg)
     if (r == -1) {
         // No output on EINVAL, used to determine end of enumeration.
         if (errno != EINVAL)
-            fprintf(stderr, "ioctl failure. %d: %s\n", errno, strerror(errno));
+            ch_error_no("ioctl failure.", errno);
+
         else
             return (1);
 
@@ -115,59 +116,6 @@ ch_ioctl(struct ch_device *device, int request, void *arg)
     }
 
     return (0);
-}
-
-/**
- * @brief Robust wrapper around calloc.
- *
- * @param nmemb Number of elements to allocate.
- * @param size Size of each element.
- * @return Pointer to allocated memory on success, NULL on failure.
- */
-static inline void *
-ch_calloc(size_t nmemb, size_t size)
-{
-    void *r = calloc(nmemb, size);
-
-    // Check if we could not allocate memory.
-    if (r == NULL || errno == ENOMEM) {
-        fprintf(stderr, "No memory available.\n");
-        return (NULL);
-    }
-
-    return (r);
-}
-
-inline void
-ch_pixfmt_to_string(uint32_t pixfmt, char *buf)
-{
-    size_t idx;
-    for (idx = 0; idx < 4; idx++)
-        buf[idx] = (pixfmt >> (8 * idx)) & 0xFF;
-
-    buf[idx] = '\0';
-}
-
-inline uint32_t
-ch_string_to_pixfmt(const char *buf)
-{
-    uint32_t pixfmt = 0;
-
-    size_t idx;
-    for (idx = 0; idx < 4 && buf[idx] != '\0'; idx++)
-        pixfmt |= (buf[idx] << (8 * idx));
-
-    return (pixfmt);
-}
-
-inline struct timeval
-ch_sec_to_timeval(double seconds)
-{
-    struct timeval ret;
-    ret.tv_sec = (long) seconds;
-    ret.tv_usec = (long) ((seconds - (double) ret.tv_sec) * 1000000);
-
-    return (ret);
 }
 
 /**
@@ -188,13 +136,13 @@ ch_validate_device(struct ch_device *device)
 
     // Verify video capture is supported.
     if (!(caps.capabilities & V4L2_CAP_VIDEO_CAPTURE)) {
-        fprintf(stderr, "Device does not support video capture.\n");
+        ch_error("Device does not support video capture.");
         return (-1);
     }
 
     // Verify streaming is supported.
     if (!(caps.capabilities & V4L2_CAP_STREAMING)) {
-        fprintf(stderr, "Device does not support streaming I/O.\n");
+        ch_error("Device does not support streaming I/O.");
         return (-1);
     }
 
@@ -218,8 +166,7 @@ ch_unmap_buffers(struct ch_device *device)
 
         if (munmap(device->in_buffers[idx].start,
                     device->in_buffers[idx].length) == -1) {
-            fprintf(stderr, "Failed to munmap buffer. %d: %s\n",
-                    errno, strerror(errno));
+            ch_error_no("Failed to munmap buffer.", errno);
 
             return (-1);
         }
@@ -296,21 +243,19 @@ ch_open_device(struct ch_device *device)
 
     // Verify existence of device.
     if (stat(device->name, &st) == -1) {
-        fprintf(stderr, "Failed to find device. %d: %s\n",
-                errno, strerror(errno));
+        ch_error_no("Failed to find device.", errno);
         return (-1);
     }
 
     // Verify device is a character device.
     if (!S_ISCHR(st.st_mode)) {
-        fprintf(stderr, "%s is not a character device.\n", device->name);
+        ch_error("Device is not a character device.");
         return (-1);
     }
 
     // Open device in read/write non-blocking mode.
     if ((device->fd = open(device->name, O_RDWR | O_NONBLOCK)) == -1) {
-        fprintf(stderr, "Failed to open device. %d: %s\n",
-                errno, strerror(errno));
+        ch_error_no("Failed to open device.", errno);
         goto error;
     }
 
@@ -333,8 +278,7 @@ ch_close_device(struct ch_device *device)
     // Only close file-descriptor if still open.
     if (device->fd > 0) {
         if (close(device->fd) == -1) {
-            fprintf(stderr, "Failed to close device. %d: %s\n",
-                    errno, strerror(errno));
+            ch_error_no("Failed to close device.", errno);
             return (-1);
         }
 
@@ -528,11 +472,8 @@ ch_validate_fmt(struct ch_device *device)
 
     int r = 0;
     if (idx == fmts->length) {
-        char pixfmt_buf[5];
-        ch_pixfmt_to_string(device->pixelformat, pixfmt_buf);
+        ch_error("Format is unsupported by device.");
 
-        fprintf(stderr, "Format %s is unsupported by device.\n",
-                pixfmt_buf);
         r = -1;
     }
 
@@ -560,12 +501,7 @@ ch_validate_frmsize(struct ch_device *device)
 
     int r = 0;
     if (idx == frmsizes->length) {
-        char pixfmt_buf[5];
-        ch_pixfmt_to_string(device->pixelformat, pixfmt_buf);
-
-        fprintf(stderr, "Framesize %ux%u is not supported for format %s.\n",
-                device->framesize.width, device->framesize.height,
-                pixfmt_buf);
+        ch_error("Framesize is unsupported for format.\n");
         r = -1;
     }
 
@@ -596,7 +532,7 @@ ch_set_fmt(struct ch_device *device)
     fmt.fmt.pix.bytesperline = 0;
 
     if (ch_ioctl(device, VIDIOC_S_FMT, &fmt) == -1) {
-        fprintf(stderr, "Could not set output format.\n");
+        ch_error("Failed to set output format.");
         return (-1);
     }
 
@@ -615,14 +551,13 @@ ch_init_stream(struct ch_device *device)
 
     // Request a number of buffers.
     if (ch_ioctl(device, VIDIOC_REQBUFS, &req) == -1) {
-        fprintf(stderr, "Failed to request buffers.\n");
+        ch_error("Failed to request buffers.");
         return (-1);
     }
 
     // Compare return to requested amount of buffers.
     if (req.count != device->num_buffers) {
-        fprintf(stderr, "Insufficient buffer memory on device (%u vs. %u).\n",
-                device->num_buffers, req.count);
+        ch_error("Insufficient memory on device for number of buffers.\n");
         return (-1);
     }
 
@@ -642,7 +577,7 @@ ch_init_stream(struct ch_device *device)
         buf.index = idx;
 
         if (ch_ioctl(device, VIDIOC_QUERYBUF, &buf) == -1) {
-            fprintf(stderr, "Failed to query buffers.\n");
+            ch_error("Failed to query buffers.");
             goto error;
         }
 
@@ -657,8 +592,7 @@ ch_init_stream(struct ch_device *device)
         );
 
         if (device->in_buffers[idx].start == MAP_FAILED) {
-            fprintf(stderr, "Failed to mmap buffer. %d: %s\n",
-                    errno, strerror(errno));
+            ch_error_no("Failed to map buffers.", errno);
             goto error;
         }
     }
@@ -695,7 +629,7 @@ ch_start_stream(struct ch_device *device)
         buf.index = idx;
 
         if (ch_ioctl(device, VIDIOC_QBUF, &buf) == -1) {
-            fprintf(stderr, "Failed to request buffer.\n");
+            ch_error("Failed to request buffer.");
             return (-1);
         }
     }
@@ -704,7 +638,7 @@ ch_start_stream(struct ch_device *device)
     enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
     if (ch_ioctl(device, VIDIOC_STREAMON, &type) == -1) {
-        fprintf(stderr, "Failed to start stream.\n");
+        ch_error("Failed to start stream.");
         return (-1);
     }
 
@@ -724,7 +658,7 @@ ch_stop_stream(struct ch_device *device)
         enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
         if (ch_ioctl(device, VIDIOC_STREAMOFF, &type) == -1) {
-            fprintf(stderr, "Failed to stop stream.\n");
+            ch_error("Failed to stop stream.");
             return (-1);
         }
     }
@@ -757,6 +691,9 @@ ch_stream_async_func(void *_args)
     int *r = ch_calloc(1, sizeof(int));
     *r = ch_stream(args.device, args.n_frames, args.callback);
 
+    // De-init thread.
+    args.device->thread = 0;
+
     pthread_exit(r);
 }
 
@@ -775,8 +712,7 @@ ch_stream_async(struct ch_device *device, uint32_t n_frames,
 
     int r = pthread_create(&device->thread, NULL, ch_stream_async_func, args);
     if (r != 0) {
-        fprintf(stderr, "Failed to create stream thread. %d: %s.\n",
-                r, strerror(r));
+        ch_error_no("Failed to create stream thread.", r);
         return (-1);
     }
 
@@ -794,14 +730,13 @@ ch_stream_async_join(struct ch_device *device)
             goto exit;
 
         if (pthread_join(device->thread, (void **) &rp) != 0) {
-            fprintf(stderr, "Failed to join stream thread. %d: %s.\n",
-                r, strerror(r));
+            ch_error_no("Failed to join stream thread.", r);
             r = -1;
             goto exit;
         }
 
         if ((r = *rp) == -1) {
-            fprintf(stderr, "Error in stream thread on close.\n");
+            ch_error("Error in stream thread on close.");
             goto exit;
         }
     }
@@ -817,16 +752,13 @@ int
 ch_stream(struct ch_device *device, uint32_t n_frames,
         int (*callback)(struct ch_frmbuf *frm))
 {
-    // Initialize stream if not already started.
     if (device->stream) {
-        fprintf(stderr, "Device is already streaming.\n");
+        ch_error("Device is already streaming.");
         return (-1);
     }
 
-    if (ch_start_stream(device) == -1) {
-        fprintf(stderr, "Failed to start stream.\n");
+    if (ch_start_stream(device) == -1)
         return (-1);
-    }
 
     int r = 0;
 
@@ -842,12 +774,11 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
         r = select(device->fd + 1, &fds, NULL, NULL, &temp);
 
         if (r == -1) {
-            fprintf(stderr, "Error on select. %d: %s\n",
-                    errno, strerror(errno));
+            ch_error_no("Error on select.", errno);
             break;
 
         } else if (r == 0) {
-            fprintf(stderr, "Timeout on select.\n");
+            ch_error("Timeout on select.");
             r = -1;
             break;
         }
@@ -860,13 +791,13 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
         buf.memory = V4L2_MEMORY_MMAP;
 
         if ((r = ch_ioctl(device, VIDIOC_DQBUF, &buf)) == -1) {
-            fprintf(stderr, "Failure dequeuing buffer.\n");
+            ch_error("Failure dequeing buffer.");
             break;
         }
 
         // Verify buffer is valid.
         if (buf.index > device->num_buffers) {
-            fprintf(stderr, "Bad buffer index returned from deque.\n");
+            ch_error("Bad buffer index returned from dequeue.");
             r = -1;
             break;
         }
@@ -912,7 +843,7 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
 
         // Queue buffer.
         if ((r = ch_ioctl(device, VIDIOC_QBUF, &buf)) == -1) {
-            fprintf(stderr, "Failed requeuing buffer.\n");
+            ch_error("Failure requeing buffer.");
             break;
         }
     }

@@ -5,7 +5,7 @@ LDFLAGS = -ljpeg -lavutil -lavformat -lavcodec -lpthread
 BINDIR  = bin
 SRCDIR  = src
 
-LIBSRCS = $(SRCDIR)/device.c $(SRCDIR)/decode.c
+LIBSRCS = $(SRCDIR)/device.c $(SRCDIR)/decode.c $(SRCDIR)/util.c
 LIBOBJS = $(patsubst %.c, %.o, $(LIBSRCS))
 LIBRARY = libchiasm.a
 

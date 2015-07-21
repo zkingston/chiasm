@@ -11,6 +11,3 @@ GUI Stuff
    - Destroy handler with webcam shutdown.
    - Investigate other methods of drawing the RGB buffer.
    - Window resizing.
-
-Threaded Streaming
-   - Check error robustness

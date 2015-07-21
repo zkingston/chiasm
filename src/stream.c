@@ -164,6 +164,9 @@ main(int argc, char *argv[])
     // Install signal handlers to clean up and exit nicely.
     signal(SIGINT, signal_handler);
 
+    // Enable error output to stderr.
+    ch_set_stderr(true);
+
     int r = 0;
     if ((r = ch_open_device(&device)) == -1)
         goto cleanup;
@@ -182,12 +185,8 @@ main(int argc, char *argv[])
     if ((r = ch_set_fmt(&device)) == -1)
         goto cleanup;
 
-    if ((r = ch_stream_async(&device, n_frames, stream_callback)) == -1)
+    if ((r = ch_stream(&device, n_frames, stream_callback)) == -1)
         goto cleanup;
-
-    sleep(3);
-
-    ch_stream_async_join(&device);
 
 cleanup:
     ch_stop_stream(&device);

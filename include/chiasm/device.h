@@ -17,31 +17,6 @@ extern "C" {
 int ch_parse_device_opt(int opt, char *optarg, struct ch_device *device);
 
 /**
- * @brief Converts a pixelformat character code to a null-terminated string.
- *
- * @param pixfmt Pixel format character code.
- * @param buf Buffer to fill in. Must be 5 elements long.
- * @return None.
- */
-inline void ch_pixfmt_to_string(uint32_t pixfmt, char *buf);
-
-/**
- * @brief Converts a string into a pixelformat character code.
- *
- * @param buf Buffer to convert.
- * @return Pixel format code from buffer.
- */
-inline uint32_t ch_string_to_pixfmt(const char *buf);
-
-/**
- * @brief Converts an amount in seconds to a struct timeval.
- *
- * @param seconds Time in seconds.
- * @return Time in a struct timeval.
- */
-inline struct timeval ch_sec_to_timeval(double seconds);
-
-/**
  * @brief Initialize a struct ch_device.
  *
  * @param device The struct to fill.
@@ -156,7 +131,7 @@ int ch_stop_stream(struct ch_device *device);
  * @return 0 on success, -1 on failure.
  */
 int ch_stream(struct ch_device *device, uint32_t num_frames,
-	      int (*callback)(struct ch_frmbuf *frm));
+              int (*callback)(struct ch_frmbuf *frm));
 
 /**
  * @brief Stream video and call a callback upon every new frame asynchronously.
@@ -168,7 +143,7 @@ int ch_stream(struct ch_device *device, uint32_t num_frames,
  * @return 0 on success, -1 on failure.
  */
 int ch_stream_async(struct ch_device *device, uint32_t n_frames,
-		    int (*callback)(struct ch_frmbuf *frm));
+                    int (*callback)(struct ch_frmbuf *frm));
 
 /**
  * @brief Stops a running asynchronous stream and joins the thread.
