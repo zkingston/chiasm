@@ -21,52 +21,53 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
 {
     switch (opt) {
     case 'd':
-	device->name = optarg;
-	break;
+        device->name = optarg;
+        break;
 
     case 't': {
-	char *ptr;
-	double r = strtod(optarg, &ptr);
+        char *ptr;
+        double r = strtod(optarg, &ptr);
 
-	if (r == 0 && ptr == optarg) {
-	    fprintf(stderr, "Invalid timeout.\n");
-	    return (-1);
-	}
+        if (r == 0 && ptr == optarg) {
+            fprintf(stderr, "Invalid timeout.\n");
+            return (-1);
+        }
 
-	device->timeout = ch_sec_to_timeval(r);
-	break;
+        device->timeout = ch_sec_to_timeval(r);
+        break;
     }
 
     case 'b':
-	device->num_buffers = (uint32_t) strtoul(optarg, NULL, 10);
-	if (errno == EINVAL || errno == ERANGE || device->num_buffers == 0) {
-	    fprintf(stderr, "Invalid value in buffer count argument %s.\n",
-		    optarg);
-	    return (-1);
-	}
+        device->num_buffers = (uint32_t) strtoul(optarg, NULL, 10);
+        if (errno == EINVAL || errno == ERANGE || device->num_buffers == 0) {
+            fprintf(stderr, "Invalid value in buffer count argument %s.\n",
+                    optarg);
+            return (-1);
+        }
 
-	break;
+        break;
 
     case 'f':
-	if (strnlen(optarg, 5) > 4) {
-	    fprintf(stderr, "Pixel formats must be at most 4 characters.\n");
-	    return (-1);
-	}
+        if (strnlen(optarg, 5) > 4) {
+            fprintf(stderr, "Pixel formats must be at most 4 characters.\n");
+            return (-1);
+        }
 
-	device->pixelformat = ch_string_to_pixfmt(optarg);
-	break;
+        device->pixelformat = ch_string_to_pixfmt(optarg);
+        break;
 
     case 'g':
-	if (sscanf(optarg, "%ux%u",
-		   &device->framesize.width, &device->framesize.height) != 2) {
-	    fprintf(stderr, "Error parsing geometry string.\n");
-	    return (-1);
-	}
+        if (sscanf(optarg, "%ux%u",
+                   &device->framesize.width, &device->framesize.height) != 2) {
+            fprintf(stderr, "Error parsing geometry string.\n");
+            return (-1);
+        }
 
-	break;
+        break;
 
     default:
-	break;
+        fprintf(stderr, "Invalid option for device parse.\n");
+        return (-1);
     }
 
     return (0);
@@ -98,16 +99,16 @@ ch_ioctl(struct ch_device *device, int request, void *arg)
         // No output on EINVAL, used to determine end of enumeration.
         if (errno != EINVAL)
             fprintf(stderr, "ioctl failure. %d: %s\n", errno, strerror(errno));
-	else
-	    return (1);
+        else
+            return (1);
 
         // If device no longer exists, close the device.
         if (errno == ENODEV) {
             ch_close_device(device);
 
-	    // Clean up allocated structures.
-	    ch_stop_stream(device);
-	}
+            // Clean up allocated structures.
+            ch_stop_stream(device);
+        }
 
 
         return (-1);
@@ -315,7 +316,7 @@ ch_open_device(struct ch_device *device)
 
     // Verify device can stream video.
     if (ch_validate_device(device) == -1) {
-	ch_close_device(device);
+        ch_close_device(device);
         goto error;
     }
 
@@ -358,7 +359,7 @@ ch_enum_fmts(struct ch_device *device)
         fmtdesc.index++;
 
     if (r == -1)
-	return (NULL);
+        return (NULL);
 
     // Create storage array and fill.
     struct ch_fmts *fmts = ch_calloc(1, sizeof(struct ch_fmts));
@@ -379,8 +380,8 @@ ch_enum_fmts(struct ch_device *device)
         fmts->fmts[fmtdesc.index++] = fmtdesc.pixelformat;
 
     if (r == -1) {
-	ch_destroy_fmts(fmts);
-	fmts = NULL;
+        ch_destroy_fmts(fmts);
+        fmts = NULL;
     }
 
     return (fmts);
@@ -408,7 +409,7 @@ ch_enum_frmsizes(struct ch_device *device)
         frmsize.index++;
 
     if (r == -1)
-	return (NULL);
+        return (NULL);
 
     // Only supporting discrete resolutions. Should return on first if not.
     if (frmsize.type != V4L2_FRMSIZE_TYPE_DISCRETE)
@@ -436,8 +437,8 @@ ch_enum_frmsizes(struct ch_device *device)
         };
 
     if (r == -1) {
-	ch_destroy_frmsizes(frmsizes);
-	frmsizes = NULL;
+        ch_destroy_frmsizes(frmsizes);
+        frmsizes = NULL;
     }
 
     return (frmsizes);
@@ -463,17 +464,17 @@ ch_enum_ctrls(struct ch_device *device)
     qctrl.id = V4L2_CID_BASE;
 
     while ((r = ch_ioctl(device, VIDIOC_QUERYCTRL, &qctrl)) != -1) {
-	// Verify control is not disabled.
-	length++;
-	printf("Control %08X: %s\n", qctrl.flags, qctrl.name);
+        // Verify control is not disabled.
+        length++;
+        printf("Control %08X: %s\n", qctrl.flags, qctrl.name);
 
-	if (r == 1 && qctrl.id >= V4L2_CID_LASTP1)
-		break;
+        if (r == 1 && qctrl.id >= V4L2_CID_LASTP1)
+                break;
 
-	if (qctrl.id == V4L2_CID_LASTP1 - 1)
-	    qctrl.id = V4L2_CID_PRIVATE_BASE - 1;
+        if (qctrl.id == V4L2_CID_LASTP1 - 1)
+            qctrl.id = V4L2_CID_PRIVATE_BASE - 1;
 
-	qctrl.id++;
+        qctrl.id++;
     }
 
     // Create storage array and fill.
@@ -720,13 +721,16 @@ ch_stop_stream(struct ch_device *device)
 
     // Send command to device to stop stream.
     if (device->fd > 0) {
-	enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+        enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
-	if (ch_ioctl(device, VIDIOC_STREAMOFF, &type) == -1) {
-	    fprintf(stderr, "Failed to stop stream.\n");
-	    return (-1);
-	}
+        if (ch_ioctl(device, VIDIOC_STREAMOFF, &type) == -1) {
+            fprintf(stderr, "Failed to stop stream.\n");
+            return (-1);
+        }
     }
+
+    // Obtain lock on stream buffers.
+    pthread_mutex_lock(&device->out_mutex);
 
     // Destroy input buffers.
     if (device->in_buffers)
@@ -738,6 +742,8 @@ ch_stop_stream(struct ch_device *device)
     // Destroy output buffer.
     ch_destroy_outbuf(device);
     device->stream = false;
+
+    pthread_mutex_unlock(&device->out_mutex);
 
     return (0);
 }
@@ -783,27 +789,26 @@ ch_stream_async_join(struct ch_device *device)
     int r = 0;
     int *rp = NULL;
 
-    // TODO: Test error handling here.
     if (device->thread) {
-	if ((r = ch_stop_stream(device)) == -1)
-	    goto exit;
+        if ((r = ch_stop_stream(device)) == -1)
+            goto exit;
 
-	if (pthread_join(device->thread, (void **) &rp) != 0) {
-	    fprintf(stderr, "Failed to join stream thread. %d: %s.\n",
-		    r, strerror(r));
-	    r = -1;
-	    goto exit;
-	}
+        if (pthread_join(device->thread, (void **) &rp) != 0) {
+            fprintf(stderr, "Failed to join stream thread. %d: %s.\n",
+                r, strerror(r));
+            r = -1;
+            goto exit;
+        }
 
-	if ((r = *rp) == -1) {
-	    fprintf(stderr, "Error in stream thread on close.\n");
-	    goto exit;
-	}
+        if ((r = *rp) == -1) {
+            fprintf(stderr, "Error in stream thread on close.\n");
+            goto exit;
+        }
     }
 
 exit:
     if (rp)
-	free(rp);
+        free(rp);
 
     return (r);
 }
@@ -814,13 +819,13 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
 {
     // Initialize stream if not already started.
     if (device->stream) {
-	fprintf(stderr, "Device is already streaming.\n");
-	return (-1);
+        fprintf(stderr, "Device is already streaming.\n");
+        return (-1);
     }
 
     if (ch_start_stream(device) == -1) {
-	fprintf(stderr, "Failed to start stream.\n");
-	return (-1);
+        fprintf(stderr, "Failed to start stream.\n");
+        return (-1);
     }
 
     int r = 0;
@@ -866,6 +871,15 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
             break;
         }
 
+        // Obtain lock on stream buffers.
+        pthread_mutex_lock(&device->out_mutex);
+
+        // Verify we are still streaming after obtaining the lock.
+        if (!device->stream) {
+            pthread_mutex_unlock(&device->out_mutex);
+            break;
+        }
+
         // Convert input image to basic 24-bit RGB array.
         switch (device->pixelformat) {
         case V4L2_PIX_FMT_YUYV:
@@ -882,16 +896,18 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
             break;
         }
 
-        if (r == -1)
+        if (r == -1) {
+            pthread_mutex_unlock(&device->out_mutex);
             break;
+        }
 
         // Callback.
-        pthread_mutex_lock(&device->out_mutex);
         if ((r = callback(&device->out_buffer)) == -1) {
             pthread_mutex_unlock(&device->out_mutex);
             break;
         }
 
+        // Unlock stream buffers.
         pthread_mutex_unlock(&device->out_mutex);
 
         // Queue buffer.

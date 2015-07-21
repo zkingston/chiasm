@@ -36,8 +36,8 @@ signal_handler(int signal)
 static int
 stream_callback(struct ch_frmbuf *frm)
 {
-    fwrite(frm->start, frm->length, 1, stdout);
-    fflush(stdout);
+//     fwrite(frm->start, frm->length, 1, stdout);
+//     fflush(stdout);
 
     fprintf(stderr, ".");
     fflush(stderr);
@@ -116,23 +116,23 @@ main(int argc, char *argv[])
     int opt;
     while ((opt = getopt(argc, argv, CH_OPTS "cn:lh?")) != -1) {
         switch (opt) {
-	case 'd':
-	case 't':
-	case 'b':
-	case 'f':
-	case 'g':
-	    if (ch_parse_device_opt(opt, optarg, &device) == -1)
-		return (-1);
+        case 'd':
+        case 't':
+        case 'b':
+        case 'f':
+        case 'g':
+            if (ch_parse_device_opt(opt, optarg, &device) == -1)
+                return (-1);
 
-	    break;
+            break;
 
         case 'l':
             list = true;
             break;
 
-	case 'c':
-	    ctrl = true;
-	    break;
+        case 'c':
+            ctrl = true;
+            break;
 
         case 'n':
             n_frames = strtoul(optarg, NULL, 10);
@@ -149,7 +149,7 @@ main(int argc, char *argv[])
             printf(
                 "Usage: %s [OPTIONS]\n"
                 "Options:\n"
-		CH_HELP
+                CH_HELP
                 " -n   Number of frames to read. 0 = Infinite. %d by default.\n"
                 " -l   List formats, resolutions, framerates and exit.\n"
                 " -?,h Show this help.\n",
@@ -170,20 +170,24 @@ main(int argc, char *argv[])
 
     if (list)
         if (list_formats(&device) == -1)
-	    goto cleanup;
+            goto cleanup;
 
     if (ctrl)
-	if (list_ctrls(&device) == -1)
-	    goto cleanup;
+        if (list_ctrls(&device) == -1)
+            goto cleanup;
 
     if (list || ctrl)
-	goto cleanup;
+        goto cleanup;
 
     if ((r = ch_set_fmt(&device)) == -1)
         goto cleanup;
 
-    if ((r = ch_stream(&device, n_frames, stream_callback)) == -1)
+    if ((r = ch_stream_async(&device, n_frames, stream_callback)) == -1)
         goto cleanup;
+
+    sleep(3);
+
+    ch_stream_async_join(&device);
 
 cleanup:
     ch_stop_stream(&device);
