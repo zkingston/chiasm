@@ -129,7 +129,6 @@ main(int argc, char *argv[])
     gtk_window_set_default_size(GTK_WINDOW(window),
 				device.framesize.width, device.framesize.height);
 
-
     // Register destroy signal.
     // TODO: Have destroy signal go into handler to shutdown webcam.
     g_signal_connect(G_OBJECT(window), "destroy",

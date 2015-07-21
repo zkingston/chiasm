@@ -45,7 +45,6 @@ struct ch_ctrl {
     int32_t  max;
     int32_t  step;
     int32_t  defval;
-    struct ch_ctrl_menu *menu;
 };
 
 struct ch_ctrls {

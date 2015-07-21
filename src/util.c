@@ -81,7 +81,7 @@ ch_enable_log(void) {
 }
 
 void
-ch_error_no(char *buf, int err) {
+ch_error_no(const char *buf, int err) {
     if (!ch_log)
         return;
 
@@ -91,14 +91,14 @@ ch_error_no(char *buf, int err) {
     char err_buf[100];
     strerror_r(err, err_buf, 100);
 
-    syslog(LOG_ERR, "%s [sd: %s]", buf, err, err_buf);
+    syslog(LOG_ERR, "%s [%d: %s]", buf, err, err_buf);
 
     if (ch_stderr)
         fprintf(stderr, "[CH_ERROR] %s [%d: %s]\n", buf, err, err_buf);
 }
 
 void
-ch_error(char *buf) {
+ch_error(const char *buf) {
     if (!ch_log)
         return;
 

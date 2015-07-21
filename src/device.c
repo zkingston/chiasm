@@ -395,38 +395,96 @@ ch_destroy_frmsizes(struct ch_frmsizes *frmsizes)
     free(frmsizes);
 }
 
+/**
+ * @brief Helper function to iterate over a range of camera controls.
+ *
+ * @param device Device to query.
+ * @param base Base index of control range.
+ * @param limit Exclusive limit of control range.
+ * @param callback Function to call on each valid control.
+ *        Should return 0 on succes, -1 on failure.
+ * @param cx Context to provide to callback function.
+ * @return 0 on success, -1 on failure.
+ */
+static int
+ch_enum_ctrl_range(struct ch_device *device, uint32_t base, uint32_t limit,
+		   int (*callback)(void *cx, struct v4l2_queryctrl *qctrl),
+		   void *cx)
+{
+    struct v4l2_queryctrl qctrl;
+
+    uint32_t idx;
+    for (idx = base; idx < limit; idx++) {
+	CH_CLEAR(&qctrl);
+	qctrl.id = idx;
+
+	if (ch_ioctl(device, VIDIOC_QUERYCTRL, &qctrl) == -1)
+	    return (-1);
+
+	// Using population of the name field to determine valid controls.
+	if (qctrl.name[0] != '\0')
+	    if (callback(cx, &qctrl) == -1)
+		return (-1);
+    }
+
+    return (0);
+}
+
+/**
+ * @brief Helper function for finding total number of controls.
+ */
+static int
+ch_length_inc(void *cx, struct v4l2_queryctrl *qctrl) {
+    // No warnings.
+    qctrl = (struct v4l2_queryctrl *) qctrl;
+
+    uint32_t *length = (uint32_t *) cx;
+    (*length)++;
+    return (0);
+}
+
+/**
+ * @brief Helper function for populating struct ch_ctrls.
+ */
+static int
+ch_ctrls_populate(void *cx, struct v4l2_queryctrl *qctrl) {
+    struct ch_ctrls *ctrls = (struct ch_ctrls *) cx;
+    struct ch_ctrl *ctrl = &ctrls->ctrls[ctrls->length];
+
+    ctrl->id = qctrl->id;
+    memcpy(ctrl->name, qctrl->name, 32);
+    ctrl->type = qctrl->type;
+    ctrl->min = qctrl->minimum;
+    ctrl->max = qctrl->maximum;
+    ctrl->step = qctrl->step;
+    ctrl->defval = qctrl->default_value;
+
+    ctrls->length++;
+    return (0);
+}
+
 struct ch_ctrls *
 ch_enum_ctrls(struct ch_device *device)
 {
-    struct v4l2_queryctrl qctrl;
-    CH_CLEAR(&qctrl);
-
+    // TODO: Iterate over private controls. Not needed right now.
     uint32_t length = 0;
 
     // Iterate over predefined controls.
-    int r = 0;
-    qctrl.id = V4L2_CID_BASE;
+    if (ch_enum_ctrl_range(device, V4L2_CID_BASE, V4L2_CID_LASTP1,
+			   ch_length_inc, &length) == -1)
+	return (NULL);
 
-    while ((r = ch_ioctl(device, VIDIOC_QUERYCTRL, &qctrl)) != -1) {
-        // Verify control is not disabled.
-        length++;
-        printf("Control %08X: %s\n", qctrl.flags, qctrl.name);
-
-        if (r == 1 && qctrl.id >= V4L2_CID_LASTP1)
-                break;
-
-        if (qctrl.id == V4L2_CID_LASTP1 - 1)
-            qctrl.id = V4L2_CID_PRIVATE_BASE - 1;
-
-        qctrl.id++;
-    }
+    // Iterate over camera controls.
+    if (ch_enum_ctrl_range(device,
+			   V4L2_CID_CAMERA_CLASS_BASE,
+			   V4L2_CID_AUTO_FOCUS_RANGE + 1,
+			   ch_length_inc, &length) == -1)
+	return (NULL);
 
     // Create storage array and fill.
     struct ch_ctrls *ctrls = ch_calloc(1, sizeof(struct ch_ctrls));
     if (ctrls == NULL)
         return (NULL);
-
-    ctrls->length = length;
 
     ctrls->ctrls = ch_calloc(length, sizeof(struct ch_ctrl));
     if (ctrls->ctrls == NULL) {
@@ -434,13 +492,20 @@ ch_enum_ctrls(struct ch_device *device)
         return (NULL);
     }
 
-    size_t idx;
+    if (ch_enum_ctrl_range(device, V4L2_CID_BASE, V4L2_CID_LASTP1,
+			   ch_ctrls_populate, ctrls) == -1)
+	goto clean;
+
+    if (ch_enum_ctrl_range(device,
+			   V4L2_CID_CAMERA_CLASS_BASE,
+			   V4L2_CID_AUTO_FOCUS_RANGE + 1,
+			   ch_ctrls_populate, ctrls) == -1)
+	goto clean;
 
     return (ctrls);
 
 clean:
     // Set shorter length to prevent iteration over uninitialized elements.
-    ctrls->length = idx;
     ch_destroy_ctrls(ctrls);
 
     return (NULL);
@@ -449,7 +514,8 @@ clean:
 void
 ch_destroy_ctrls(struct ch_ctrls *ctrls)
 {
-    // Remember to iterate over ctrls and clean up menu options
+    free(ctrls->ctrls);
+    free(ctrls);
 }
 
 /**

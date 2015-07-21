@@ -100,6 +100,10 @@ list_ctrls(struct ch_device *device)
 {
     struct ch_ctrls *ctrls = ch_enum_ctrls(device);
 
+    size_t idx;
+    for (idx = 0; idx < ctrls->length; idx++)
+	printf("%lu - %s\n", idx, ctrls->ctrls[idx].name);
+
     ch_destroy_ctrls(ctrls);
     return (0);
 }

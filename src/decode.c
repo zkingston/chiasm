@@ -60,79 +60,79 @@ ch_YUYV_to_RGB(const struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb)
  * @param cinfo Context information.
  * @return None.
  */
-// static void
-// ch_jpeg_error(j_common_ptr cinfo)
-// {
-//     struct ch_jpeg_error_cx *jerr = (struct ch_jpeg_error_cx *) cinfo;
-//     (*jerr->pub.output_message)(cinfo);
-//
-//     longjmp(jerr->cx, 1);
-// }
-//
-// int
-// ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
-// {
-//     struct jpeg_decompress_struct cinfo;
-//     struct ch_jpeg_error_cx jerr;
-//
-//     // Open jpeg image in memory as a file source.
-//     FILE *jsrc = fmemopen(mjpg->start, mjpg->length, "rb");
-//     if (jsrc == NULL) {
-//         fprintf(stderr, "Failed to open memory buffer. %d: %s\n",
-//                 errno, strerror(errno));
-//         return (-1);
-//     }
-//
-//     // Initialize error handling. Using setjmp to return control in error.
-//     cinfo.err = jpeg_std_error(&jerr.pub);
-//     jerr.pub.error_exit = ch_jpeg_error;
-//
-//     int r = 0;
-//     if ((r = setjmp(jerr.cx)) == -1)
-//         goto exit;
-//
-//     // Initialize decompression.
-//     jpeg_create_decompress(&cinfo);
-//     jpeg_stdio_src(&cinfo, jsrc);
-//     jpeg_read_header(&cinfo, TRUE);
-//     jpeg_start_decompress(&cinfo);
-//
-//     int row_stride = cinfo.output_width * cinfo.output_components;
-//     JSAMPARRAY buffer = (*cinfo.mem->alloc_sarray)
-//         ((j_common_ptr) &cinfo, JPOOL_IMAGE, row_stride, 1);
-//
-//     // Read all scanlines into RGB buffer.
-//     {
-//         size_t idx = 0;
-//         while (cinfo.output_scanline < cinfo.output_height) {
-//             jpeg_read_scanlines(&cinfo, buffer, 1);
-//
-//             memcpy(&rgb->start[idx], buffer[0], row_stride);
-//             idx += row_stride;
-//         }
-//     }
-//
-//     jpeg_finish_decompress(&cinfo);
-//
-// exit:
-//     jpeg_destroy_decompress(&cinfo);
-//     if (fclose(jsrc) == EOF) {
-//         fprintf(stderr, "Failed to close memory buffer. %d: %s.\n",
-//                 errno, strerror(errno));
-//     };
-//
-//     // Emit warning and debug messages upon error.
-//     if (jerr.pub.num_warnings != 0) {
-//         fprintf(stderr, "Encountered errors in JPEG decompression.\n");
-//
-//         int idx;
-//         for (idx = 0; idx < jerr.pub.last_jpeg_message; idx++)
-//             fprintf(stderr, "%s\n", jerr.pub.jpeg_message_table[idx]);
-//         r = -1;
-//     }
-//
-//     return (r);
-// }
+static void
+ch_jpeg_error(j_common_ptr cinfo)
+{
+    struct ch_jpeg_error_cx *jerr = (struct ch_jpeg_error_cx *) cinfo;
+    (*jerr->pub.output_message)(cinfo);
+
+    longjmp(jerr->cx, 1);
+}
+
+int
+ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
+{
+    struct jpeg_decompress_struct cinfo;
+    struct ch_jpeg_error_cx jerr;
+
+    // Open jpeg image in memory as a file source.
+    FILE *jsrc = fmemopen(mjpg->start, mjpg->length, "rb");
+    if (jsrc == NULL) {
+	ch_error_no("Failed to open memory buffer.", errno);
+        return (-1);
+    }
+
+    // Initialize error handling. Using setjmp to return control in error.
+    cinfo.err = jpeg_std_error(&jerr.pub);
+    jerr.pub.error_exit = ch_jpeg_error;
+
+    int r = 0;
+    if ((r = setjmp(jerr.cx)) == -1)
+        goto exit;
+
+    // Initialize decompression.
+    jpeg_create_decompress(&cinfo);
+    jpeg_stdio_src(&cinfo, jsrc);
+    jpeg_read_header(&cinfo, TRUE);
+    jpeg_start_decompress(&cinfo);
+
+    int row_stride = cinfo.output_width * cinfo.output_components;
+    JSAMPARRAY buffer = (*cinfo.mem->alloc_sarray)
+        ((j_common_ptr) &cinfo, JPOOL_IMAGE, row_stride, 1);
+
+    // Read all scanlines into RGB buffer.
+    {
+        size_t idx = 0;
+        while (cinfo.output_scanline < cinfo.output_height) {
+            jpeg_read_scanlines(&cinfo, buffer, 1);
+
+            memcpy(&rgb->start[idx], buffer[0], row_stride);
+            idx += row_stride;
+        }
+    }
+
+    jpeg_finish_decompress(&cinfo);
+
+exit:
+    jpeg_destroy_decompress(&cinfo);
+    if (fclose(jsrc) == EOF) {
+	ch_error_no("Failed to close memory buffer.", errno);
+	r = -1;
+    }
+
+    // Emit warning and debug messages upon error.
+    if (jerr.pub.num_warnings != 0) {
+	ch_error("Encountered errors in JPEG decompression.");
+
+        int idx;
+	for (idx = 0; idx < jerr.pub.last_jpeg_message; idx++)
+	    ch_error(jerr.pub.jpeg_message_table[idx]);
+
+	r = -1;
+    }
+
+    return (r);
+}
 
 #include <stdio.h>
 
@@ -144,7 +144,7 @@ ch_YUYV_to_RGB(const struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb)
 // TODO: Use this for all media stream decoding
 
 int
-ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
+_ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
 {
     // TODO: Remove when done.
     rgb = (struct ch_frmbuf *) rgb;

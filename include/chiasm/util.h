@@ -88,7 +88,7 @@ void ch_set_stderr(bool val);
  * @param err Error code.
  * @return None.
  */
-void ch_error_no(char *buf, int err);
+void ch_error_no(const char *buf, int err);
 
 /**
  * @brief Error message logging.
@@ -96,7 +96,7 @@ void ch_error_no(char *buf, int err);
  * @param buf Error message.
  * @return None.
  */
-void ch_error(char *buf);
+void ch_error(const char *buf);
 
 #ifdef __cplusplus
 }
