@@ -1,5 +1,5 @@
-#ifndef CHIASM_IMAGE_H_
-#define CHIASM_IMAGE_H_
+#ifndef CHIASM_DECODE_H_
+#define CHIASM_DECODE_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -8,6 +8,13 @@ extern "C" {
 #include <setjmp.h>
 
 #include <jpeglib.h>
+#include <libavcodec/avcodec.h>
+
+// Backwards compatibility.
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(55,28,1)
+#define av_frame_alloc  avcodec_alloc_frame
+#define av_frame_free avcodec_free_frame
+#endif
 
 struct ch_jpeg_error_cx {
     struct jpeg_error_mgr pub;

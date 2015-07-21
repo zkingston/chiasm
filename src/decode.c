@@ -193,14 +193,14 @@ ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
         goto exit;
     }
 
-    AVFrame *frame = avcodec_alloc_frame();
+    AVFrame *frame = av_frame_alloc();
     if (frame == NULL) {
         fprintf(stderr, "Failed to allocate frame.\n");
         r = -1;
         goto exit;
     }
 
-    AVFrame *frameRGB = avcodec_alloc_frame();
+    AVFrame *frameRGB = av_frame_alloc();
     if (frameRGB == NULL) {
         fprintf(stderr, "Failed to allocate frame.\n");
         r = -1;
@@ -210,8 +210,8 @@ ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
 exit:
     fprintf(stderr, "Exiting decode.\n");
 
-    avcodec_free_frame(&frame);
-    avcodec_free_frame(&frameRGB);
+    av_frame_free(&frame);
+    av_frame_free(&frameRGB);
 
     if (codec_cx != NULL) {
         avcodec_close(codec_cx);
