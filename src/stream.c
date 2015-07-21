@@ -5,6 +5,7 @@
 #include <string.h>
 #include <signal.h>
 
+#include <linux/videodev2.h>
 #include <chiasm.h>
 
 struct ch_device device;
@@ -101,8 +102,36 @@ list_ctrls(struct ch_device *device)
     struct ch_ctrls *ctrls = ch_enum_ctrls(device);
 
     size_t idx;
-    for (idx = 0; idx < ctrls->length; idx++)
-	printf("%lu - %s\n", idx, ctrls->ctrls[idx].name);
+    for (idx = 0; idx < ctrls->length; idx++) {
+	struct ch_ctrl *ctrl = &ctrls->ctrls[idx];
+	printf("%32s, ", ctrl->name);
+
+	switch (ctrl->type) {
+	case V4L2_CTRL_TYPE_INTEGER:
+	    printf("Default: %5d, Range: %d / %d\n",
+		   ctrl->defval / ctrl->step, ctrl->min / ctrl->step, ctrl->max / ctrl->step);
+	    break;
+	case V4L2_CTRL_TYPE_BOOLEAN:
+	    printf("Default: %5d, Range: 0 / 1\n", ctrl->defval);
+	    break;
+	case V4L2_CTRL_TYPE_MENU: {
+	    struct ch_ctrl_menu *menu = ch_enum_ctrl_menu(device, ctrl);
+
+	    printf("Default: %s, Options:", menu->items[ctrl->defval].name);
+
+	    size_t jdx;
+	    for (jdx = 0; jdx < menu->length; jdx++)
+		printf(" [%s]", menu->items[jdx].name);
+
+	    printf("\n");
+	    ch_destroy_ctrl_menu(menu);
+	    break;
+	}
+	default:
+	    printf("Unsupported\n");
+	    break;
+	}
+    }
 
     ch_destroy_ctrls(ctrls);
     return (0);

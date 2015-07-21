@@ -80,7 +80,7 @@ void ch_destroy_frmsizes(struct ch_frmsizes *frmsizes);
  * @param device Device to list controls for.
  * @return An allocated struct ch_ctrls of all controls available.
  */
-struct ch_ctrls * ch_enum_ctrls(struct ch_device *device);
+struct ch_ctrls *ch_enum_ctrls(struct ch_device *device);
 
 /**
  * @brief Deallocate a struct ch_ctrls created by ch_enum_ctrls.
@@ -89,6 +89,23 @@ struct ch_ctrls * ch_enum_ctrls(struct ch_device *device);
  * @return None.
  */
 void ch_destroy_ctrls(struct ch_ctrls *ctrls);
+
+/**
+ * @brief Return a list of all menu options for a control.
+ *
+ * @param device Device with the control.
+ * @param ctrl Menu control to list options for.
+ * @return An allocated struct ch_ctrl_menu with all menu options.
+ */
+struct ch_ctrl_menu *ch_enum_ctrl_menu(struct ch_device *device, struct ch_ctrl *ctrl);
+
+/**
+ * @brief Deallocate a struct ch_ctrl_menu created by ch_enum_ctrl_menu.
+ *
+ * @param menu Allocated struct ch_ctrl_menu.
+ * @return None.
+ */
+void ch_destroy_ctrl_menu(struct ch_ctrl_menu *menu);
 
 /**
  * @brief Sets device format and framesize based on contents of provided struct.

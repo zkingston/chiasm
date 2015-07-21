@@ -518,6 +518,46 @@ ch_destroy_ctrls(struct ch_ctrls *ctrls)
     free(ctrls);
 }
 
+struct ch_ctrl_menu *
+ch_enum_ctrl_menu(struct ch_device *device, struct ch_ctrl *ctrl)
+{
+    struct v4l2_querymenu qmenu;
+    CH_CLEAR(&qmenu);
+
+    struct ch_ctrl_menu *menu = ch_calloc(1, sizeof(struct ch_ctrl_menu));
+    if (menu == NULL)
+	return (NULL);
+
+    menu->length = ctrl->max - ctrl->min + 1;
+    menu->items = ch_calloc(menu->length, sizeof(union ch_ctrl_menu_item));
+    if (menu->items == NULL) {
+	free(menu);
+	return (NULL);
+    }
+
+    // Assume that the control's maximum will be positive.
+    qmenu.id = ctrl->id;
+    for (qmenu.index = ctrl->min; qmenu.index <= (uint32_t) ctrl->max; qmenu.index++) {
+	if (ch_ioctl(device, VIDIOC_QUERYMENU, &qmenu) == -1)
+	    goto clean;
+
+	memcpy(menu->items[qmenu.index - ctrl->min].name, qmenu.name, 32);
+    }
+
+    return (menu);
+
+clean:
+    ch_destroy_ctrl_menu(menu);
+    return (NULL);
+}
+
+void
+ch_destroy_ctrl_menu(struct ch_ctrl_menu *menu)
+{
+    free(menu->items);
+    free(menu);
+}
+
 /**
  * @brief Validates a device's requested format.
  *
