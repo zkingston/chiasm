@@ -611,6 +611,19 @@ ch_get_ctrl(struct ch_device *device, struct ch_ctrl *ctrl, int32_t *value)
 int
 ch_set_ctrl(struct ch_device *device, struct ch_ctrl *ctrl, int32_t value)
 {
+    // Invalid value.
+    if (value > ctrl->max / ctrl->step || value < ctrl->min / ctrl->step)
+	return (-1);
+
+    struct v4l2_control vctrl;
+    CH_CLEAR(&vctrl);
+
+    vctrl.id = ctrl->id;
+    vctrl.value = value * ctrl->step;
+
+    if (ch_ioctl(device, VIDIOC_S_CTRL, &vctrl) == -1)
+	return (-1);
+
     return (0);
 }
 

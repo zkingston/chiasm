@@ -10,7 +10,7 @@ LIBOBJS = $(patsubst %.c, %.o, $(LIBSRCS))
 LIBRARY = libchiasm.a
 
 .PHONY: all
-all: $(LIBRARY) display stream
+all: $(LIBRARY) display stream control
 
 $(LIBRARY): $(LIBOBJS)
 	ar ru $@ $^
@@ -24,6 +24,9 @@ display: src/display.o $(LIBRARY)
 	`pkg-config --libs gtk+-2.0 --libs gthread-2.0`
 
 stream: src/stream.o $(LIBRARY)
+	$(CC) -o $(BINDIR)/$@ $(CFLAGS) $< $(LIBRARY) $(LDFLAGS)
+
+control: src/control.o $(LIBRARY)
 	$(CC) -o $(BINDIR)/$@ $(CFLAGS) $< $(LIBRARY) $(LDFLAGS)
 
 clean:
