@@ -107,13 +107,60 @@ ctrl_info(struct ch_device *device, const char *ctrl_name)
  * @return 0 on succes, -1 on failure.
  */
 static int
-ctrl_set(struct ch_device *device, const char *ctrl_name, int32_t value)
+ctrl_set(struct ch_device *device, const char *ctrl_name, const char *value)
 {
     struct ch_ctrl *ctrl = ch_find_ctrl(device, ctrl_name);
     if (ctrl == NULL)
 	return (-1);
 
-    int r = ch_set_ctrl(device, ctrl, value);
+    int32_t ival = 0;
+
+    int r = 0;
+    switch (ctrl->type) {
+    case V4L2_CTRL_TYPE_INTEGER:
+    case V4L2_CTRL_TYPE_BOOLEAN: {
+	char *p;
+	ival = strtol(value, &p, 10);
+	if (p == value) {
+	    fprintf(stderr, "Invalid value for control.\n");
+	    r = -1;
+	}
+
+	break;
+    }
+    case V4L2_CTRL_TYPE_MENU: {
+	struct ch_ctrl_menu *menu = ch_enum_ctrl_menu(device, ctrl);
+	if (menu == NULL)
+	    break;
+
+	size_t l = strnlen(value, 32);
+
+	size_t idx;
+	for (idx = 0; idx < menu->length; idx++)
+	    if (strncmp(value, menu->items[idx].name, 32) == 0
+		&& strnlen(menu->items[idx].name, 32) == l) {
+		ival = (int32_t) idx;
+		break;
+	    }
+
+	if (idx == menu->length) {
+	    fprintf(stderr, "Invalid value for control.\n");
+	    r = -1;
+	}
+
+	ch_destroy_ctrl_menu(menu);
+	break;
+    }
+
+    default:
+	fprintf(stderr, "Control type not supported.\n");
+	r = -1;
+	break;
+    }
+
+    if (r == 0)
+	if ((r = ch_set_ctrl(device, ctrl, ival)) == -1)
+	    fprintf(stderr, "Invalid value for control.\n");
 
     free(ctrl);
     return (r);
@@ -125,9 +172,8 @@ main(int argc, char *argv[])
     struct ch_device device;
     bool list = false;
     bool info = false;
-    bool setc = false;
     char *ctrl = NULL;
-    int32_t value = 0;
+    char *value = NULL;
 
     ch_init_device(&device);
 
@@ -159,13 +205,7 @@ main(int argc, char *argv[])
 	    break;
 
 	case 's':
-	    value = strtol(optarg, NULL, 10);
-	    if (errno == EINVAL || errno == ERANGE) {
-		fprintf(stderr, "Invalid value for control.\n");
-		return (-1);
-	    }
-	    setc = true;
-
+	    value = optarg;
 	    break;
 
 	case 'h':
@@ -202,7 +242,7 @@ main(int argc, char *argv[])
 	if (info)
 	    if ((r = ctrl_info(&device, ctrl)) == -1)
 		goto cleanup;
-	if (setc)
+	if (value)
 	    if ((r = ctrl_set(&device, ctrl, value)) == -1)
 		goto cleanup;
     }

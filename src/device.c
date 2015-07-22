@@ -565,7 +565,7 @@ ch_find_ctrl(struct ch_device *device, const char *ctrl_name)
     if (ctrls == NULL)
 	return (NULL);
 
-    size_t l = strlen(ctrl_name);
+    size_t l = strnlen(ctrl_name, 32);
 
     // Iterate over controls and find the matching name.
     size_t idx;
