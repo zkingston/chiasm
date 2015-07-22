@@ -20,35 +20,17 @@ ch_dl_load(const char *name)
 	return (NULL);
     }
 
-    char *err = NULL;
-
+    // Load all functions. None are required.
     plugin->init =
 	(int (*)(struct ch_device *)) dlsym(plugin->so, CH_STR(CH_DL_INIT));
-    err = dlerror();
-
-    if (err) {
-	ch_error("Failed to load plugin init function.");
-	ch_error(err);
-
-	goto clean;
-    }
 
     plugin->callback =
 	(int (*)(struct ch_device *)) dlsym(plugin->so, CH_STR(CH_DL_CALL));
-    err = dlerror();
 
-    if (err) {
-	ch_error("Failed to load plugin callback function.");
-	ch_error(err);
-
-	goto clean;
-    }
+    plugin->quit =
+	(int (*)(struct ch_device *)) dlsym(plugin->so, CH_STR(CH_DL_QUIT));
 
     return (plugin);
-
-clean:
-    ch_dl_close(plugin);
-    return (NULL);
 }
 
 

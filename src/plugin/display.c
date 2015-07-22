@@ -5,6 +5,8 @@
 
 #include <chiasm.h>
 
+pthread_t gui_thread;
+
 static gboolean
 timer_callback(GtkWidget *widget)
 {
@@ -90,10 +92,8 @@ setup_gui(void *arg)
 int
 CH_DL_INIT(struct ch_device *device)
 {
-    pthread_t t;
-
     int r;
-    if ((r = pthread_create(&t, NULL, setup_gui, device)) != 0) {
+    if ((r = pthread_create(&gui_thread, NULL, setup_gui, device)) != 0) {
 	ch_error_no("Failed to create display thread.", r);
 	return (-1);
     }
@@ -102,9 +102,15 @@ CH_DL_INIT(struct ch_device *device)
 }
 
 int
-CH_DL_CALL(struct ch_device *device)
+CH_DL_QUIT(struct ch_device *device)
 {
-    device = (struct ch_device *) device;
+    gtk_main_quit();
+
+    int r;
+    if ((r = pthread_join(gui_thread, NULL)) != 0) {
+	ch_error_no("Failed to join display thread.", r);
+	return (-1);
+    }
 
     return (0);
 }

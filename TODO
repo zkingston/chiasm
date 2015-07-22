@@ -1,6 +1,4 @@
 * Major Features
-Use dynamic library plugins for callbacks in streaming.
-
 Decode video streams using libavcodec.
 
 * Minor Features

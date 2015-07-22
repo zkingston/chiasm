@@ -40,8 +40,9 @@ stream_callback(struct ch_device *device)
 {
     size_t idx;
     for (idx = 0; idx < plugin_max; idx++)
-	if (plugins[idx]->callback(device) == -1)
-	    return (-1);
+	if (plugins[idx]->callback)
+	    if (plugins[idx]->callback(device) == -1)
+		return (-1);
 
     return (0);
 }
@@ -175,8 +176,9 @@ main(int argc, char *argv[])
     {
 	size_t idx;
 	for (idx = 0; idx < plugin_max; idx++)
-	    if ((r = plugins[idx]->init(&device)) == -1)
-		goto cleanup;
+	    if (plugins[idx]->init)
+		if ((r = plugins[idx]->init(&device)) == -1)
+		    goto cleanup;
     }
 
     if ((r = ch_set_fmt(&device)) == -1)
@@ -188,8 +190,12 @@ main(int argc, char *argv[])
 cleanup:
     {
 	size_t idx;
-	for (idx = 0; idx < plugin_max; idx++)
+	for (idx = 0; idx < plugin_max; idx++) {
+	    if (plugins[idx]->quit)
+		plugins[idx]->quit(&device);
+
 	    ch_dl_close(plugins[idx]);
+	}
     }
 
     ch_stop_stream(&device);
