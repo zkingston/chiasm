@@ -11,10 +11,10 @@ struct ch_device device;
 struct ch_frmbuf *buf = NULL;
 
 static int
-stream_callback(struct ch_frmbuf *frm)
+stream_callback(struct ch_device *device)
 {
     fprintf(stderr, ".");
-    buf = frm;
+    buf = &device->out_buffer;
     return (0);
 }
 

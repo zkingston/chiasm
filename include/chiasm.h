@@ -79,7 +79,7 @@ struct ch_device {
 struct ch_stream_args {
     struct ch_device *device;
     uint32_t n_frames;
-    int (*callback)(struct ch_frmbuf *frm);
+    int (*callback)(struct ch_device *device);
 };
 
 #include <chiasm/util.h>

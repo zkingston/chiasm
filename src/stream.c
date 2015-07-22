@@ -35,7 +35,7 @@ signal_handler(int signal)
  * @return Always 0.
  */
 static int
-stream_callback(struct ch_frmbuf *frm)
+stream_callback(struct ch_device *device)
 {
 //     fwrite(frm->start, frm->length, 1, stdout);
 //     fflush(stdout);

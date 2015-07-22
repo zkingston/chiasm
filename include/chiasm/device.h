@@ -176,7 +176,7 @@ int ch_stop_stream(struct ch_device *device);
  * @return 0 on success, -1 on failure.
  */
 int ch_stream(struct ch_device *device, uint32_t num_frames,
-              int (*callback)(struct ch_frmbuf *frm));
+              int (*callback)(struct ch_device *device));
 
 /**
  * @brief Stream video and call a callback upon every new frame asynchronously.
@@ -188,7 +188,7 @@ int ch_stream(struct ch_device *device, uint32_t num_frames,
  * @return 0 on success, -1 on failure.
  */
 int ch_stream_async(struct ch_device *device, uint32_t n_frames,
-                    int (*callback)(struct ch_frmbuf *frm));
+                    int (*callback)(struct ch_device *device));
 
 /**
  * @brief Stops a running asynchronous stream and joins the thread.

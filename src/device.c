@@ -874,7 +874,7 @@ ch_stream_async_func(void *_args)
 
 int
 ch_stream_async(struct ch_device *device, uint32_t n_frames,
-        int (*callback)(struct ch_frmbuf *frm))
+        int (*callback)(struct ch_device *device))
 {
     struct ch_stream_args *args;
     args = ch_calloc(1, sizeof(struct ch_stream_args));
@@ -925,7 +925,7 @@ exit:
 
 int
 ch_stream(struct ch_device *device, uint32_t n_frames,
-        int (*callback)(struct ch_frmbuf *frm))
+        int (*callback)(struct ch_device *device))
 {
     if (device->stream) {
         ch_error("Device is already streaming.");
@@ -1008,7 +1008,7 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
         }
 
         // Callback.
-        if ((r = callback(&device->out_buffer)) == -1) {
+        if ((r = callback(device)) == -1) {
             pthread_mutex_unlock(&device->out_mutex);
             break;
         }
