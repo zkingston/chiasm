@@ -125,12 +125,19 @@ ctrl_info(struct ch_device *device, const char *ctrl_name)
     if (ctrl == NULL)
 	return (-1);
 
+    int32_t value;
+    if (ch_get_ctrl(device, ctrl, &value) == -1) {
+	free(ctrl);
+	return (-1);
+    }
+
     printf("Information for control \"%s\"\n", ctrl_name);
 
     switch (ctrl->type) {
     case V4L2_CTRL_TYPE_INTEGER:
 	printf("   Type: Integer\n");
 	printf("Default: %d\n", ctrl->defval / ctrl->step);
+	printf("Current: %d\n", value);
 	printf("  Range: %d / %d\n",
 	       ctrl->min / ctrl->step,
 	       ctrl->max / ctrl->step);
@@ -140,6 +147,7 @@ ctrl_info(struct ch_device *device, const char *ctrl_name)
     case V4L2_CTRL_TYPE_BOOLEAN:
 	printf("   Type: Boolean\n");
 	printf("Default: %d\n", ctrl->defval);
+	printf("Current: %d\n", value);
 	break;
 
     case V4L2_CTRL_TYPE_MENU: {
@@ -151,6 +159,7 @@ ctrl_info(struct ch_device *device, const char *ctrl_name)
 
 	printf("   Type: Menu\n");
 	printf("Default: %s\n", menu->items[ctrl->defval].name);
+	printf("Current: %s\n", menu->items[value].name);
 	printf("Options: ");
 
 	size_t jdx;

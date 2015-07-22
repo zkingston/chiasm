@@ -595,7 +595,21 @@ clean:
 }
 
 int
-ch_set_ctrl(struct ch_device *device, struct ch_ctrl *ctrl, void *arg)
+ch_get_ctrl(struct ch_device *device, struct ch_ctrl *ctrl, int32_t *value)
+{
+    struct v4l2_control vctrl;
+    CH_CLEAR(&vctrl);
+
+    vctrl.id = ctrl->id;
+    if (ch_ioctl(device, VIDIOC_G_CTRL, &vctrl) == -1)
+	return (-1);
+
+    *value = vctrl.value;
+    return (0);
+}
+
+int
+ch_set_ctrl(struct ch_device *device, struct ch_ctrl *ctrl, int32_t value)
 {
     return (0);
 }
