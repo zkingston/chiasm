@@ -17,6 +17,7 @@ all: $(LIBRARY) stream control output.so display.so
 $(LIBRARY): $(LIBOBJS)
 	ar ru $@ $^
 	ranlib $@
+	rm $^
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -31,5 +32,3 @@ $(LIBRARY): $(LIBOBJS)
 clean:
 	rm $(LIBRARY)
 	rm -r $(BINDIR)/*
-	rm $(SRCDIR)/*.o
-	rm $(PLGDIR)/*.o

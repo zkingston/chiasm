@@ -83,6 +83,8 @@ setup_gui(void *arg)
     gtk_widget_show_all(window);
 
     gtk_main();
+
+    return (NULL);
 }
 
 int
@@ -102,5 +104,7 @@ CH_DL_INIT(struct ch_device *device)
 int
 CH_DL_CALL(struct ch_device *device)
 {
+    device = (struct ch_device *) device;
+
     return (0);
 }
