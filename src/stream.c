@@ -19,7 +19,7 @@ struct ch_device device;
 void
 signal_handler(int signal)
 {
-    fprintf(stderr, "Signal %s received. Cleaning up and exiting...\n",
+    fprintf(stderr, "\nSignal %s received. Cleaning up and exiting...\n",
             strsignal(signal));
 
     ch_stop_stream(&device);
@@ -121,69 +121,55 @@ list_ctrls(struct ch_device *device)
 static int
 ctrl_info(struct ch_device *device, const char *ctrl_name)
 {
-    struct ch_ctrls *ctrls = ch_enum_ctrls(device);
-    if (ctrls == NULL)
+    struct ch_ctrl *ctrl = ch_find_ctrl(device, ctrl_name);
+    if (ctrl == NULL)
 	return (-1);
 
-    size_t l = strlen(ctrl_name);
+    printf("Information for control \"%s\"\n", ctrl_name);
 
-    int r = -1;
-    size_t idx;
-    for (idx = 0; idx < ctrls->length; idx++) {
-	struct ch_ctrl *ctrl = &ctrls->ctrls[idx];
+    switch (ctrl->type) {
+    case V4L2_CTRL_TYPE_INTEGER:
+	printf("   Type: Integer\n");
+	printf("Default: %d\n", ctrl->defval / ctrl->step);
+	printf("  Range: %d / %d\n",
+	       ctrl->min / ctrl->step,
+	       ctrl->max / ctrl->step);
 
-	if (strncmp(ctrl_name, ctrl->name, l) == 0 && l == strlen(ctrl->name)) {
-	    printf("Information for control \"%s\"\n", ctrl_name);
+	break;
 
-	    switch (ctrl->type) {
-	    case V4L2_CTRL_TYPE_INTEGER:
-		printf("   Type: Integer\n");
-		printf("Default: %d\n", ctrl->defval / ctrl->step);
-		printf("  Range: %d / %d\n",
-		       ctrl->min / ctrl->step,
-		       ctrl->max / ctrl->step);
+    case V4L2_CTRL_TYPE_BOOLEAN:
+	printf("   Type: Boolean\n");
+	printf("Default: %d\n", ctrl->defval);
+	break;
 
-		break;
-
-	    case V4L2_CTRL_TYPE_BOOLEAN:
-		printf("   Type: Boolean\n");
-		printf("Default: %d\n", ctrl->defval);
-		break;
-
-	    case V4L2_CTRL_TYPE_MENU: {
-		struct ch_ctrl_menu *menu = ch_enum_ctrl_menu(device, ctrl);
-		if (menu == NULL)
-		    goto exit;
-
-		printf("   Type: Menu\n");
-		printf("Default: %s\n", menu->items[ctrl->defval].name);
-		printf("Options: ");
-
-		size_t jdx;
-		for (jdx = 0; jdx < menu->length; jdx++)
-		    if (menu->items[jdx].name[0] != '\0')
-			printf("%s%s", menu->items[jdx].name,
-			       (jdx != menu->length - 1) ? ", " : "\n");
-
-		ch_destroy_ctrl_menu(menu);
-		break;
-	    }
-	    default:
-		printf("   Type: Unsupported\n");
-		break;
-	    }
-
-	    r = 0;
-	    break;
+    case V4L2_CTRL_TYPE_MENU: {
+	struct ch_ctrl_menu *menu = ch_enum_ctrl_menu(device, ctrl);
+	if (menu == NULL) {
+	    free(ctrl);
+	    return (-1);
 	}
+
+	printf("   Type: Menu\n");
+	printf("Default: %s\n", menu->items[ctrl->defval].name);
+	printf("Options: ");
+
+	size_t jdx;
+	for (jdx = 0; jdx < menu->length; jdx++)
+	    if (menu->items[jdx].name[0] != '\0')
+		printf("%s%s", menu->items[jdx].name,
+		       (jdx != menu->length - 1) ? ", " : "\n");
+
+	ch_destroy_ctrl_menu(menu);
+	break;
     }
 
-    if (r == -1)
-	printf("Control not found.\n");
+    default:
+	printf("   Type: Unsupported\n");
+	break;
+    }
 
-exit:
-    ch_destroy_ctrls(ctrls);
-    return (r);
+    free(ctrl);
+    return (0);
 }
 
 int

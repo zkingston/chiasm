@@ -558,6 +558,48 @@ ch_destroy_ctrl_menu(struct ch_ctrl_menu *menu)
     free(menu);
 }
 
+struct ch_ctrl *
+ch_find_ctrl(struct ch_device *device, const char *ctrl_name)
+{
+    struct ch_ctrls *ctrls = ch_enum_ctrls(device);
+    if (ctrls == NULL)
+	return (NULL);
+
+    size_t l = strlen(ctrl_name);
+
+    // Iterate over controls and find the matching name.
+    size_t idx;
+    struct ch_ctrl *ctrl = NULL;
+    for (idx = 0; idx < ctrls->length; idx++)
+	if (strncmp(ctrl_name, ctrls->ctrls[idx].name, l) == 0
+	    && l == strnlen(ctrls->ctrls[idx].name, 32))
+	    ctrl = &ctrls->ctrls[idx];
+
+    if (ctrl == NULL)
+	ch_error("Control not found.");
+
+    else {
+	struct ch_ctrl *ctrl_t = ch_calloc(1, sizeof(struct ch_ctrl));
+	if (ctrl_t == NULL) {
+	    ctrl = NULL;
+	    goto clean;
+	}
+
+	memcpy(ctrl_t, ctrl, sizeof(struct ch_ctrl));
+	ctrl = ctrl_t;
+    }
+
+clean:
+    ch_destroy_ctrls(ctrls);
+    return (ctrl);
+}
+
+int
+ch_set_ctrl(struct ch_device *device, struct ch_ctrl *ctrl, void *arg)
+{
+    return (0);
+}
+
 /**
  * @brief Validates a device's requested format.
  *

@@ -108,6 +108,25 @@ struct ch_ctrl_menu *ch_enum_ctrl_menu(struct ch_device *device, struct ch_ctrl 
 void ch_destroy_ctrl_menu(struct ch_ctrl_menu *menu);
 
 /**
+ * @brief Find a control on a device.
+ *
+ * @param device Device with the control.
+ * @param ctrl_name Name of control to find.
+ * @return An allocated structure of control information. Must be freed.
+ */
+struct ch_ctrl *ch_find_ctrl(struct ch_device *device, const char *ctrl_name);
+
+/**
+ * @brief Set a value of a control on a device.
+ *
+ * @param device Device to set control on.
+ * @param ctrl The control to set the value for.
+ * @param arg Value to set. Must be of the type that the control is.
+ * @return 0 on success, -1 on failure.
+ */
+int ch_set_ctrl(struct ch_device *device, struct ch_ctrl *ctrl, void *arg);
+
+/**
  * @brief Sets device format and framesize based on contents of provided struct.
  *
  * @param device Device to set with parameters.
