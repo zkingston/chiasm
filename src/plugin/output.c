@@ -3,10 +3,11 @@
 
 #include <chiasm.h>
 
+// Basic example of a plugin.
+
 int
 CH_DL_INIT(struct ch_device *device)
 {
-    fprintf(stderr, "Plugin intialized.");
     return (0);
 }
 
