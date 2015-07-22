@@ -82,9 +82,10 @@ struct ch_stream_args {
     int (*callback)(struct ch_device *device);
 };
 
-#include <chiasm/util.h>
+#include <chiasm/util.h
 #include <chiasm/device.h>
 #include <chiasm/decode.h>
+#include <chiasm/plugin.h>
 
 #ifdef __cplusplus
 }

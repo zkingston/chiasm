@@ -9,6 +9,7 @@
 #include <chiasm.h>
 
 struct ch_device device;
+struct ch_dl *plugin = NULL;
 
 /**
  * @brief Signal handler to gracefully shutdown in the case of an interrupt.
@@ -37,13 +38,7 @@ signal_handler(int signal)
 static int
 stream_callback(struct ch_device *device)
 {
-//     fwrite(frm->start, frm->length, 1, stdout);
-//     fflush(stdout);
-
-    fprintf(stderr, ".");
-    fflush(stderr);
-
-    return (0);
+    return (plugin->callback(device));
 }
 
 /**
@@ -95,11 +90,12 @@ main(int argc, char *argv[])
 {
     size_t n_frames = CH_DEFAULT_NUMFRAMES;
     bool list = false;
+    char *plugin_name = NULL;
 
     ch_init_device(&device);
 
     int opt;
-    while ((opt = getopt(argc, argv, CH_OPTS "n:lh?")) != -1) {
+    while ((opt = getopt(argc, argv, CH_OPTS "p:n:lh?")) != -1) {
         switch (opt) {
         case 'd':
         case 't':
@@ -124,6 +120,10 @@ main(int argc, char *argv[])
 
             break;
 
+	case 'p':
+	    plugin_name = optarg;
+	    break;
+
         case 'h':
         case '?':
         default:
@@ -135,6 +135,7 @@ main(int argc, char *argv[])
 		CH_HELP_G
 		CH_HELP_B
 		CH_HELP_T
+		" -p   Filename of chiasm plugin to load. Required.\n"
                 " -n   Number of frames to read. 0 = Infinite. %d by default.\n"
                 " -l   List formats, resolutions, framerates and exit.\n"
                 " -?,h Show this help.\n",
@@ -151,6 +152,10 @@ main(int argc, char *argv[])
 
     // Enable error output to stderr.
     ch_set_stderr(true);
+
+    plugin = ch_dl_load(plugin_name);
+    if (plugin == NULL)
+	return (-1);
 
     int r = 0;
     if ((r = ch_open_device(&device)) == -1)
@@ -170,6 +175,7 @@ main(int argc, char *argv[])
         goto cleanup;
 
 cleanup:
+    ch_dl_close(plugin)
     ch_stop_stream(&device);
     ch_close_device(&device);
 

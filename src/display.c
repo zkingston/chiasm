@@ -13,7 +13,6 @@ struct ch_frmbuf *buf = NULL;
 static int
 stream_callback(struct ch_device *device)
 {
-    fprintf(stderr, ".");
     buf = &device->out_buffer;
     return (0);
 }
@@ -63,7 +62,6 @@ on_expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer data)
 int
 main(int argc, char *argv[])
 {
-    int n_frames = 0;
     ch_init_device(&device);
 
     int opt;
@@ -78,15 +76,6 @@ main(int argc, char *argv[])
 		return (-1);
 
 	    break;
-
-	case 'n':
-            n_frames = strtoul(optarg, NULL, 10);
-            if (errno == EINVAL || errno == ERANGE) {
-                fprintf(stderr, "Invalid number of frames %s.\n", optarg);
-                return (-1);
-            }
-
-            break;
 
         case 'h':
         case '?':
@@ -115,7 +104,7 @@ main(int argc, char *argv[])
     if ((r = ch_set_fmt(&device)) == -1)
 	goto cleanup;
 
-    if ((r = ch_stream_async(&device, n_frames, stream_callback)) == -1)
+    if ((r = ch_stream_async(&device, 0, stream_callback)) == -1)
 	goto cleanup;
 
     // TODO: Investigate robust error handling on GUI calls.
