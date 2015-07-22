@@ -949,6 +949,11 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
         r = select(device->fd + 1, &fds, NULL, NULL, &temp);
 
         if (r == -1) {
+	    if (errno == EINTR) {
+		r = 0;
+		continue;
+	    }
+
             ch_error_no("Error on select.", errno);
             break;
 

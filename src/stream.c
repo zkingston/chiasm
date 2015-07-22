@@ -8,8 +8,11 @@
 #include <linux/videodev2.h>
 #include <chiasm.h>
 
+#define MAX_PLUGINS 10
+
 struct ch_device device;
-struct ch_dl *plugin = NULL;
+struct ch_dl *plugins[MAX_PLUGINS];
+size_t plugin_max = 0;
 
 /**
  * @brief Signal handler to gracefully shutdown in the case of an interrupt.
@@ -24,9 +27,6 @@ signal_handler(int signal)
             strsignal(signal));
 
     ch_stop_stream(&device);
-    ch_close_device(&device);
-
-    exit(0);
 }
 
 /**
@@ -38,7 +38,12 @@ signal_handler(int signal)
 static int
 stream_callback(struct ch_device *device)
 {
-    return (plugin->callback(device));
+    size_t idx;
+    for (idx = 0; idx < plugin_max; idx++)
+	if (plugins[idx]->callback(device) == -1)
+	    return (-1);
+
+    return (0);
 }
 
 /**
@@ -90,7 +95,6 @@ main(int argc, char *argv[])
 {
     size_t n_frames = CH_DEFAULT_NUMFRAMES;
     bool list = false;
-    char *plugin_name = NULL;
 
     ch_init_device(&device);
 
@@ -121,7 +125,11 @@ main(int argc, char *argv[])
             break;
 
 	case 'p':
-	    plugin_name = optarg;
+	    plugins[plugin_max] = ch_dl_load(optarg);
+	    if (plugins[plugin_max] == NULL)
+		return (-1);
+
+	    plugin_max++;
 	    break;
 
         case 'h':
@@ -153,10 +161,6 @@ main(int argc, char *argv[])
     // Enable error output to stderr.
     ch_set_stderr(true);
 
-    plugin = ch_dl_load(plugin_name);
-    if (plugin == NULL)
-	return (-1);
-
     int r = 0;
     if ((r = ch_open_device(&device)) == -1)
         goto cleanup;
@@ -168,6 +172,13 @@ main(int argc, char *argv[])
     if (list)
         goto cleanup;
 
+    {
+	size_t idx;
+	for (idx = 0; idx < plugin_max; idx++)
+	    if ((r = plugins[idx]->init(&device)) == -1)
+		goto cleanup;
+    }
+
     if ((r = ch_set_fmt(&device)) == -1)
         goto cleanup;
 
@@ -175,7 +186,12 @@ main(int argc, char *argv[])
         goto cleanup;
 
 cleanup:
-    ch_dl_close(plugin)
+    {
+	size_t idx;
+	for (idx = 0; idx < plugin_max; idx++)
+	    ch_dl_close(plugins[idx]);
+    }
+
     ch_stop_stream(&device);
     ch_close_device(&device);
 
