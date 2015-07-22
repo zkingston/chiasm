@@ -94,7 +94,11 @@ main(int argc, char *argv[])
             printf(
                 "Usage: %s [OPTIONS]\n"
                 "Options:\n"
-		CH_HELP
+                CH_HELP_D
+		CH_HELP_F
+		CH_HELP_G
+		CH_HELP_B
+		CH_HELP_T
                 " -?,h Show this help.\n",
                 argv[0]
             );
@@ -107,10 +111,11 @@ main(int argc, char *argv[])
     if (ch_open_device(&device) == -1)
 	return (-1);
 
-    if (ch_set_fmt(&device) == -1)
+    int r = 0;
+    if ((r = ch_set_fmt(&device)) == -1)
 	goto cleanup;
 
-    if (ch_stream_async(&device, n_frames, stream_callback) == -1)
+    if ((r = ch_stream_async(&device, n_frames, stream_callback)) == -1)
 	goto cleanup;
 
     // TODO: Investigate robust error handling on GUI calls.
@@ -149,11 +154,9 @@ main(int argc, char *argv[])
 
     gtk_main();
 
-    return (0);
-
 cleanup:
     ch_stream_async_join(&device);
     ch_close_device(&device);
 
-    return (-1);
+    return (r);
 }

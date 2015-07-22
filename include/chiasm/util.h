@@ -22,11 +22,19 @@ extern "C" {
 #define CH_DEFAULT_TIMEOUT   2.0
 #define CH_DEFAULT_NUMFRAMES 0
 
-#define CH_HELP \
-    " -d   Device name. " CH_STR(CH_DEFAULT_DEVICE) " by default.\n" \
-    " -f   Image format code. " CH_STR(CH_DEFAULT_FORMAT) " by default.\n" \
-    " -g   Frame geometry in <w>x<h> format. " CH_STR(CH_DEFAULT_WIDTH) "x" CH_STR(CH_DEFAULT_HEIGHT) " by default.\n" \
-    " -b   Specify number of buffers to request. " CH_STR(CH_DEFAULT_BUFNUM) " by default.\n" \
+#define CH_HELP_D \
+    " -d   Device name. " CH_STR(CH_DEFAULT_DEVICE) " by default.\n"
+
+#define CH_HELP_F \
+    " -f   Image format code. " CH_STR(CH_DEFAULT_FORMAT) " by default.\n"
+
+#define CH_HELP_G \
+    " -g   Frame geometry in <w>x<h> format. " CH_STR(CH_DEFAULT_WIDTH) "x" CH_STR(CH_DEFAULT_HEIGHT) " by default.\n"
+
+#define CH_HELP_B \
+    " -b   Specify number of buffers to request. " CH_STR(CH_DEFAULT_BUFNUM) " by default.\n"
+
+#define CH_HELP_T \
     " -t   Timeout in seconds. " CH_STR(CH_DEFAULT_TIMEOUT) " by default.\n"
 
 #define CH_CLEAR(x) (memset((x) , 0, sizeof(*(x))))
