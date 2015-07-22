@@ -1,6 +1,6 @@
 CC      = gcc
 CFLAGS  = -Wall -Wextra -g3 -O3 -Iinclude `pkg-config --cflags gtk+-2.0` -fPIC
-LDFLAGS = -ljpeg -lavutil -lavformat -lavcodec -lpthread -ldl
+LDFLAGS = -ljpeg -lswscale -lavutil -lavformat -lavcodec -lpthread -ldl
 LDFLAGS += `pkg-config --libs gtk+-2.0 --libs gthread-2.0`
 
 SRCDIR  = src

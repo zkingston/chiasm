@@ -173,32 +173,25 @@ main(int argc, char *argv[])
     if (list)
         goto cleanup;
 
-    {
-	size_t idx;
-	for (idx = 0; idx < plugin_max; idx++)
-	    if (plugins[idx]->init)
-		if ((r = plugins[idx]->init(&device)) == -1)
-		    goto cleanup;
-    }
-
     if ((r = ch_set_fmt(&device)) == -1)
         goto cleanup;
 
-    if ((r = ch_stream(&device, n_frames, stream_callback)) == -1)
-        goto cleanup;
+    size_t idx;
+    for (idx = 0; idx < plugin_max; idx++)
+	if (plugins[idx]->init)
+	    if ((r = plugins[idx]->init(&device)) == -1)
+		goto cleanup;
+
+    r = ch_stream(&device, n_frames, stream_callback);
 
 cleanup:
-    {
-	size_t idx;
-	for (idx = 0; idx < plugin_max; idx++) {
-	    if (plugins[idx]->quit)
-		plugins[idx]->quit(&device);
+    for (idx = 0; idx < plugin_max; idx++) {
+	if (plugins[idx]->quit)
+	    plugins[idx]->quit(&device);
 
-	    ch_dl_close(plugins[idx]);
-	}
+	ch_dl_close(plugins[idx]);
     }
 
-    ch_stop_stream(&device);
     ch_close_device(&device);
 
     return (r);

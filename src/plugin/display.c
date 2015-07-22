@@ -7,6 +7,9 @@
 
 pthread_t gui_thread;
 
+/**
+ * @brief Callback function that occurs on a timer. Used for repaint.
+ */
 static gboolean
 timer_callback(GtkWidget *widget)
 {
@@ -18,8 +21,9 @@ timer_callback(GtkWidget *widget)
     return (TRUE);
 }
 
-// TODO: Investiage double-buffering, or some form of buffered imaging.
-
+/**
+ * @brief Callback function for expose events. Draws the new image.
+ */
 static gboolean
 on_expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer data)
 {
@@ -48,6 +52,9 @@ on_expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer data)
     return (TRUE);
 }
 
+/**
+ * @brief Initialize and start the GTK mainloop.
+ */
 static void *
 setup_gui(void *arg)
 {
@@ -92,6 +99,7 @@ setup_gui(void *arg)
 int
 CH_DL_INIT(struct ch_device *device)
 {
+    // Create display thread.
     int r;
     if ((r = pthread_create(&gui_thread, NULL, setup_gui, device)) != 0) {
 	ch_error_no("Failed to create display thread.", r);
@@ -104,6 +112,9 @@ CH_DL_INIT(struct ch_device *device)
 int
 CH_DL_QUIT(struct ch_device *device)
 {
+    device = (struct ch_device *) device;
+
+    // Close display thread and join.
     gtk_main_quit();
 
     int r;
@@ -112,5 +123,6 @@ CH_DL_QUIT(struct ch_device *device)
 	return (-1);
     }
 
+    gui_thread = 0;
     return (0);
 }
