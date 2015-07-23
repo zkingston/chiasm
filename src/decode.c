@@ -8,6 +8,8 @@
 
 #include <jpeglib.h>
 
+#include <linux/videodev2.h>
+
 #include <chiasm.h>
 
 /**
@@ -140,122 +142,160 @@ exit:
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
 
-// TODO: Finish first iteration of libavcodec usage.
-// TODO: Use this for all media stream decoding
+bool ch_codec_registered = false;
+
+int
+ch_init_decode_cx(struct ch_device *device)
+{
+    struct ch_decode_cx *cx = &device->decode_cx;
+
+    if (!ch_codec_registered) {
+	av_register_all();
+	ch_codec_registered = true;
+    }
+
+    enum AVCodecID codec_id = AV_CODEC_ID_NONE;
+
+    cx->compressed = true;
+
+    switch (device->pixelformat) {
+    case V4L2_PIX_FMT_YUYV:
+	cx->compressed = false;
+	return (0);
+
+    case V4L2_PIX_FMT_MJPEG:
+	codec_id = AV_CODEC_ID_MJPEG;
+	break;
+
+    case V4L2_PIX_FMT_H264:
+	codec_id = AV_CODEC_ID_H264;
+	break;
+
+    default:
+	ch_error("Unsupported format.");
+	return (-1);
+    }
+
+    AVCodec *codec = avcodec_find_decoder(codec_id);
+    if (codec == NULL) {
+	ch_error("Failed to find requested codec.");
+        return (-1);
+    }
+
+    cx->codec_cx = avcodec_alloc_context3(codec);
+    if (cx->codec_cx == NULL) {
+	ch_error("Failed to allocate codec context.");
+	return (-1);
+    }
+
+    cx->codec_cx->width = device->framesize.width;
+    cx->codec_cx->height = device->framesize.height;
+
+    if (avcodec_open2(cx->codec_cx, codec, NULL) < 0) {
+	ch_error("Failed to open codec.");
+	goto clean;
+    }
+
+    cx->frame_in = av_frame_alloc();
+    cx->frame_out = av_frame_alloc();
+
+    if (cx->frame_in == NULL || cx->frame_out == NULL) {
+	ch_error("Failed to allocate frames.");
+	goto clean;
+    }
+
+    if (avpicture_fill((AVPicture *) cx->frame_out,
+		       device->out_buffer.start, AV_PIX_FMT_RGB24,
+		       cx->codec_cx->width, cx->codec_cx->height) < 0) {
+	ch_error("Failed to setup output frame fields.");
+	goto clean;
+    };
+
+    return (0);
+
+clean:
+    ch_destroy_decode_cx(device);
+    return (-1);
+}
+
+void
+ch_destroy_decode_cx(struct ch_device *device)
+{
+    struct ch_decode_cx *cx = &device->decode_cx;
+
+    av_frame_free(&cx->frame_in);
+    av_frame_free(&cx->frame_out);
+
+    if (cx->codec_cx != NULL) {
+        avcodec_close(cx->codec_cx);
+        av_free(cx->codec_cx);
+    }
+}
 
 int
 ch_decode(struct ch_device *device)
 {
-    fprintf(stderr, "Registering codecs.\n");
+    struct ch_decode_cx *cx = &device->decode_cx;
 
-    // TODO: Move to initialization of device.
-    // Register all codecs.
-    av_register_all();
-
-    fprintf(stderr, "Finding codec.\n");
-
-    // Find decoder for MJPEG.
-    AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_MJPEG);
-    if (codec == NULL) {
-        fprintf(stderr, "Codec not found.\n");
-        return (-1);
+    if (!cx->compressed) {
+	ch_YUYV_to_RGB(device->in_buffer, &device->out_buffer);
+	return (0);
     }
-
-    fprintf(stderr, "Allocating codec context.\n");
-
-    // Allocate codec context.
-    int r = 0;
-    AVCodecContext *codec_cx = avcodec_alloc_context3(codec);
-    if (codec_cx == NULL) {
-        fprintf(stderr, "Could not allocate codec context.\n");
-        r = -1;
-        goto exit;
-    }
-
-    codec_cx->width = device->framesize.width;
-    codec_cx->height = device->framesize.height;
-
-    fprintf(stderr, "Opening codec.\n");
-
-    // Open codec.
-    if (avcodec_open2(codec_cx, codec, NULL) < 0) {
-        fprintf(stderr, "Could not open codec.\n");
-        r = -1;
-        goto exit;
-    }
-
-    fprintf(stderr, "Allocating frames.\n");
-
-    AVFrame *frame = av_frame_alloc();
-    if (frame == NULL) {
-        fprintf(stderr, "Failed to allocate frame.\n");
-        r = -1;
-        goto exit;
-    }
-
-    AVFrame *frameRGB = av_frame_alloc();
-    if (frameRGB == NULL) {
-        fprintf(stderr, "Failed to allocate frame.\n");
-        r = -1;
-        goto exit;
-    }
-
-    avpicture_fill((AVPicture *) frameRGB, device->out_buffer.start,
-		   PIX_FMT_RGB24, codec_cx->width, codec_cx->height);
 
     int finish = 0;
+
     AVPacket packet;
     av_init_packet(&packet);
+
     packet.data = device->in_buffer->start;
     packet.size = device->in_buffer->length;
 
-    if (avcodec_decode_video2(codec_cx, frame, &finish, &packet) < 0) {
-	fprintf(stderr, "Error decoding video.\n");
+    int r = 0;
+    if (avcodec_decode_video2(cx->codec_cx, cx->frame_in, &finish, &packet) < 0) {
+	ch_error("Failed decoding video.");
+	r = -1;
 	goto exit;
     }
 
     if (finish) {
-	fprintf(stderr, "Got a frame!!!\n");
-
 	struct SwsContext *sws_cx = sws_getContext(
-	    codec_cx->width,
-	    codec_cx->height,
-	    codec_cx->pix_fmt,
-	    codec_cx->width,
-	    codec_cx->height,
-	    PIX_FMT_RGB24,
+	    cx->codec_cx->width,
+	    cx->codec_cx->height,
+	    cx->codec_cx->pix_fmt,
+	    cx->codec_cx->width,
+	    cx->codec_cx->height,
+	    AV_PIX_FMT_RGB24,
 	    SWS_BILINEAR,
 	    NULL,
 	    NULL,
 	    NULL
 	);
 
+	if (sws_cx == NULL) {
+	    ch_error("Failed to initialize SWS context.");
+	    r = -1;
+	    goto exit;
+	}
+
 	sws_scale(
 	    sws_cx,
-	    (uint8_t const * const *) frame->data,
-	    frame->linesize,
+	    (uint8_t const * const *) cx->frame_in->data,
+	    cx->frame_in->linesize,
 	    0,
-	    codec_cx->height,
-	    frameRGB->data,
-	    frameRGB->linesize
+	    cx->codec_cx->height,
+	    cx->frame_out->data,
+	    cx->frame_out->linesize
 	);
 
+	sws_freeContext(sws_cx);
 
-    } else
-	fprintf(stderr, "No frame recieved...\n");
+    } else {
+	ch_error("No frame received.");
+	r = -1;
+    }
 
 exit:
-    fprintf(stderr, "Exiting decode.\n");
-
     av_free_packet(&packet);
-
-    av_frame_free(&frame);
-    av_frame_free(&frameRGB);
-
-    if (codec_cx != NULL) {
-        avcodec_close(codec_cx);
-        av_free(codec_cx);
-    }
 
     return (r);
 }

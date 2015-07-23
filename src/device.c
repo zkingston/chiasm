@@ -936,6 +936,9 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
     if (ch_start_stream(device) == -1)
         return (-1);
 
+    if (ch_init_decode_cx(device) == -1)
+	return (-1);
+
     int r = 0;
 
     // Iterate for number of frames requested.
@@ -995,22 +998,7 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
             break;
         }
 
-        // Convert input image to basic 24-bit RGB array.
-        switch (device->pixelformat) {
-        case V4L2_PIX_FMT_YUYV:
-            r = ch_YUYV_to_RGB(&device->in_buffers[buf.index],
-                               &device->out_buffer);
-            break;
-        case V4L2_PIX_FMT_MJPEG:
-	    r = ch_decode(device);
-            break;
-        default:
-            fprintf(stderr, "Image format not supported for callbacks.\n");
-            r = -1;
-            break;
-        }
-
-        if (r == -1) {
+        if (ch_decode(device) == -1) {
             pthread_mutex_unlock(&device->out_mutex);
             break;
         }
@@ -1031,6 +1019,7 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
         }
     }
 
+    ch_destroy_decode_cx(device);
     ch_stop_stream(device);
     return (r);
 }

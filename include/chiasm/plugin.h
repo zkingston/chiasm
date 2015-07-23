@@ -5,13 +5,6 @@
 extern "C" {
 #endif
 
-struct ch_dl {
-    void *so;
-    int (*init)(struct ch_device *device);
-    int (*callback)(struct ch_device *device);
-    int (*quit)(struct ch_device *device);
-};
-
 /**
  * @brief Loads a chiasm plugin.
  *

@@ -5,10 +5,6 @@
 extern "C" {
 #endif
 
-#include <stdio.h>
-#include <setjmp.h>
-
-#include <jpeglib.h>
 #include <libavcodec/avcodec.h>
 
 // Backwards compatibility.
@@ -16,11 +12,6 @@ extern "C" {
 #define av_frame_alloc  avcodec_alloc_frame
 #define av_frame_free avcodec_free_frame
 #endif
-
-struct ch_jpeg_error_cx {
-    struct jpeg_error_mgr pub;
-    jmp_buf cx;
-};
 
 /**
  * @brief Convert an YUYV format image into a simple RGB array.
@@ -39,6 +30,30 @@ int ch_YUYV_to_RGB(const struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb);
  * @return None.
  */
 int ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb);
+
+/**
+ * @brief Initialize a decoding context for the device's video stream.
+ *
+ * @param device Device to initialize context for.
+ * @return 0 on success, -1 on failure.
+ */
+int ch_init_decode_cx(struct ch_device *device);
+
+/**
+ * @brief Destroy allocated memory for a decoding context.
+ *
+ * @param device Device to destroy allocated context for.
+ * @return None.
+ */
+void ch_destroy_decode_cx(struct ch_device *device);
+
+/**
+ * @brief Decode a device's video stream into a basic RGB24 pixel buffer.
+ *
+ * @param device Device to decode video for.
+ * @return 0 on success, -1 on failure.
+ */
+int ch_decode(struct ch_device *device);
 
 #ifdef __cplusplus
 }
