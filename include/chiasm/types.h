@@ -10,9 +10,6 @@ extern "C" {
 #include <stdbool.h>
 #include <pthread.h>
 #include <time.h>
-#include <setjmp.h>
-
-#include <jpeglib.h>
 
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
@@ -85,14 +82,6 @@ struct ch_ctrls {
 struct ch_frmbuf {
     uint8_t  *start;  /**< Start of framebuffer array. */
     uint32_t  length; /**< Length of the array. */
-};
-
-/**
- * @brief libjpeg error handling context struct.
- */
-struct ch_jpeg_error_cx {
-    struct jpeg_error_mgr pub; /**< libjpeg error manager. */
-    jmp_buf cx;                /**< Context to exit to after handling. */
 };
 
 /**

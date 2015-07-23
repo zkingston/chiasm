@@ -988,6 +988,7 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
 
 	// Set the current input buffer.
 	device->in_buffer = &device->in_buffers[buf.index];
+	device->in_buffer->length = buf.bytesused;
 
         // Obtain lock on stream buffers.
         pthread_mutex_lock(&device->out_mutex);

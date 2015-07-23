@@ -163,6 +163,9 @@ main(int argc, char *argv[])
     ch_set_stderr(true);
 
     int r = 0;
+    size_t idx = 0;
+    size_t jdx = 0;
+
     if ((r = ch_open_device(&device)) == -1)
         goto cleanup;
 
@@ -176,7 +179,6 @@ main(int argc, char *argv[])
     if ((r = ch_set_fmt(&device)) == -1)
         goto cleanup;
 
-    size_t idx;
     for (idx = 0; idx < plugin_max; idx++)
 	if (plugins[idx]->init)
 	    if ((r = plugins[idx]->init(&device)) == -1)
@@ -185,11 +187,11 @@ main(int argc, char *argv[])
     r = ch_stream(&device, n_frames, stream_callback);
 
 cleanup:
-    for (idx = 0; idx < plugin_max; idx++) {
-	if (plugins[idx]->quit)
-	    plugins[idx]->quit(&device);
+    for (jdx = 0; jdx < idx; jdx++) {
+	if (plugins[jdx]->quit)
+	    plugins[jdx]->quit(&device);
 
-	ch_dl_close(plugins[idx]);
+	ch_dl_close(plugins[jdx]);
     }
 
     ch_close_device(&device);

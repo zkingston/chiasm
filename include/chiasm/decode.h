@@ -14,24 +14,6 @@ extern "C" {
 #endif
 
 /**
- * @brief Convert an YUYV format image into a simple RGB array.
- *
- * @param yuyv YUYV format image to convert.
- * @param rgb Output image.
- * @return None.
- */
-int ch_YUYV_to_RGB(const struct ch_frmbuf *yuyv, struct ch_frmbuf *rgb);
-
-/**
- * @brief Convert an MJPG format image into a simple RGB array.
- *
- * @param mjpg MJPG format image to convert.
- * @param rgb Output image.
- * @return None.
- */
-int ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb);
-
-/**
  * @brief Initialize a decoding context for the device's video stream.
  *
  * @param device Device to initialize context for.
