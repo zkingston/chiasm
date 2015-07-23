@@ -144,11 +144,8 @@ exit:
 // TODO: Use this for all media stream decoding
 
 int
-_ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
+ch_decode(struct ch_device *device)
 {
-    // TODO: Remove when done.
-    rgb = (struct ch_frmbuf *) rgb;
-
     fprintf(stderr, "Registering codecs.\n");
 
     // TODO: Move to initialization of device.
@@ -164,15 +161,6 @@ _ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
         return (-1);
     }
 
-    fprintf(stderr, "Opening memory source.\n");
-
-    FILE *src = fmemopen(mjpg->start, mjpg->length, "rb");
-    if (src == NULL) {
-        fprintf(stderr, "Failed to open memory buffer. %d: %s\n",
-                errno, strerror(errno));
-        return (-1);
-    }
-
     fprintf(stderr, "Allocating codec context.\n");
 
     // Allocate codec context.
@@ -184,6 +172,9 @@ _ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
         goto exit;
     }
 
+    codec_cx->width = device->framesize.width;
+    codec_cx->height = device->framesize.height;
+
     fprintf(stderr, "Opening codec.\n");
 
     // Open codec.
@@ -192,6 +183,8 @@ _ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
         r = -1;
         goto exit;
     }
+
+    fprintf(stderr, "Allocating frames.\n");
 
     AVFrame *frame = av_frame_alloc();
     if (frame == NULL) {
@@ -207,8 +200,54 @@ _ch_MJPG_to_RGB(const struct ch_frmbuf *mjpg, struct ch_frmbuf *rgb)
         goto exit;
     }
 
+    avpicture_fill((AVPicture *) frameRGB, device->out_buffer.start,
+		   PIX_FMT_RGB24, codec_cx->width, codec_cx->height);
+
+    int finish = 0;
+    AVPacket packet;
+    av_init_packet(&packet);
+    packet.data = device->in_buffer->start;
+    packet.size = device->in_buffer->length;
+
+    if (avcodec_decode_video2(codec_cx, frame, &finish, &packet) < 0) {
+	fprintf(stderr, "Error decoding video.\n");
+	goto exit;
+    }
+
+    if (finish) {
+	fprintf(stderr, "Got a frame!!!\n");
+
+	struct SwsContext *sws_cx = sws_getContext(
+	    codec_cx->width,
+	    codec_cx->height,
+	    codec_cx->pix_fmt,
+	    codec_cx->width,
+	    codec_cx->height,
+	    PIX_FMT_RGB24,
+	    SWS_BILINEAR,
+	    NULL,
+	    NULL,
+	    NULL
+	);
+
+	sws_scale(
+	    sws_cx,
+	    (uint8_t const * const *) frame->data,
+	    frame->linesize,
+	    0,
+	    codec_cx->height,
+	    frameRGB->data,
+	    frameRGB->linesize
+	);
+
+
+    } else
+	fprintf(stderr, "No frame recieved...\n");
+
 exit:
     fprintf(stderr, "Exiting decode.\n");
+
+    av_free_packet(&packet);
 
     av_frame_free(&frame);
     av_frame_free(&frameRGB);
@@ -216,12 +255,6 @@ exit:
     if (codec_cx != NULL) {
         avcodec_close(codec_cx);
         av_free(codec_cx);
-    }
-
-    if (fclose(src) == EOF)  {
-        fprintf(stderr, "Failed to close memory source. %d: %s\n",
-                errno, strerror(errno));
-        r = -1;
     }
 
     return (r);

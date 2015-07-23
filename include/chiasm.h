@@ -64,6 +64,8 @@ struct ch_device {
     struct ch_frmbuf *in_buffers;
     uint32_t          num_buffers;
 
+    struct ch_frmbuf *in_buffer;
+
     struct ch_frmbuf out_buffer;
     pthread_mutex_t  out_mutex;
 

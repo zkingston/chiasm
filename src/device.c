@@ -224,6 +224,7 @@ ch_init_device(struct ch_device *device)
     device->in_buffers = NULL;
     device->num_buffers = CH_DEFAULT_BUFNUM;
 
+    device->in_buffer = NULL;
     device->out_buffer.start = NULL;
     device->out_buffer.length = 0;
 
@@ -982,6 +983,9 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
             break;
         }
 
+	// Set the current input buffer.
+	device->in_buffer = &device->in_buffers[buf.index];
+
         // Obtain lock on stream buffers.
         pthread_mutex_lock(&device->out_mutex);
 
@@ -998,8 +1002,7 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
                                &device->out_buffer);
             break;
         case V4L2_PIX_FMT_MJPEG:
-            r = ch_MJPG_to_RGB(&device->in_buffers[buf.index],
-                               &device->out_buffer);
+	    r = ch_decode(device);
             break;
         default:
             fprintf(stderr, "Image format not supported for callbacks.\n");
