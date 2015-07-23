@@ -100,13 +100,14 @@ main(int argc, char *argv[])
     ch_init_device(&device);
 
     int opt;
-    while ((opt = getopt(argc, argv, CH_OPTS "p:n:lh?")) != -1) {
+    while ((opt = getopt(argc, argv, CH_OPTS "i:n:lh?")) != -1) {
         switch (opt) {
         case 'd':
         case 't':
         case 'b':
         case 'f':
         case 'g':
+	case 'p':
             if (ch_parse_device_opt(opt, optarg, &device) == -1)
                 return (-1);
 
@@ -125,7 +126,7 @@ main(int argc, char *argv[])
 
             break;
 
-	case 'p':
+	case 'i':
 	    plugins[plugin_max] = ch_dl_load(optarg);
 	    if (plugins[plugin_max] == NULL)
 		return (-1);
@@ -144,7 +145,8 @@ main(int argc, char *argv[])
 		CH_HELP_G
 		CH_HELP_B
 		CH_HELP_T
-		" -p   Filename of chiasm plugin to load. Required.\n"
+		CH_HELP_P
+		" -i   Filename of chiasm plugin to load. Required.\n"
                 " -n   Number of frames to read. 0 = Infinite. %d by default.\n"
                 " -l   List formats, resolutions, framerates and exit.\n"
                 " -?,h Show this help.\n",

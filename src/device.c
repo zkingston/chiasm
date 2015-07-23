@@ -65,6 +65,13 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
 
         break;
 
+    case 'p':
+	if (ch_set_out_pixfmt(device, optarg) == -1)  {
+	    fprintf(stderr, "Invalid output pixel format.\n");
+	    return (-1);
+	}
+	break;
+
     default:
         fprintf(stderr, "Invalid option for device parse.\n");
         return (-1);
@@ -175,46 +182,6 @@ ch_unmap_buffers(struct ch_device *device)
     return (0);
 }
 
-/**
- * @brief Allocate output RGB image buffer.
- *
- * @param  device Device to allocate buffer for.
- * @return 0 on success, -1 on failure.
- */
-static int
-ch_init_outbuf(struct ch_device *device)
-{
-    // Dimensions are for a 24-bit RGB (3 bytes per pixel) image.
-    device->out_buffer.length =
-        3 * device->framesize.width * device->framesize.height;
-
-    device->out_buffer.start =
-        ch_calloc(device->out_buffer.length, sizeof(uint8_t));
-
-    if (device->out_buffer.start == NULL) {
-        device->out_buffer.length = 0;
-        return (-1);
-    }
-
-    return (0);
-}
-
-/**
- * @brief Deallocate output RGB image buffer.
- *
- * @param device Device to deallocate buffer for.
- * @return None.
- */
-static void
-ch_destroy_outbuf(struct ch_device *device)
-{
-    if (device->out_buffer.start != NULL)
-        free(device->out_buffer.start);
-
-    device->out_buffer.start = NULL;
-    device->out_buffer.length = 0;
-}
-
 void
 ch_init_device(struct ch_device *device)
 {
@@ -235,6 +202,8 @@ ch_init_device(struct ch_device *device)
     device->timeout = ch_sec_to_timeval(CH_DEFAULT_TIMEOUT);
     device->stream = false;
     device->thread = 0;
+
+    ch_set_out_pixfmt(device, "RGB24");
 }
 
 int
@@ -790,10 +759,6 @@ ch_start_stream(struct ch_device *device)
         if (ch_init_stream(device) == -1)
             return (-1);
 
-    // Initialize output buffer.
-    if (ch_init_outbuf(device) == -1)
-        return (-1);
-
     // Query each buffer to be filled.
     size_t idx;
     for (idx = 0; idx < device->num_buffers; idx++) {
@@ -817,6 +782,10 @@ ch_start_stream(struct ch_device *device)
         ch_error("Failed to start stream.");
         return (-1);
     }
+
+    // Initialize decoding context.
+    if (ch_init_decode_cx(device) == -1)
+	return (-1);
 
     device->stream = true;
     return (0);
@@ -849,8 +818,7 @@ ch_stop_stream(struct ch_device *device)
     free(device->in_buffers);
     device->in_buffers = NULL;
 
-    // Destroy output buffer.
-    ch_destroy_outbuf(device);
+    ch_destroy_decode_cx(device);
     device->stream = false;
 
     pthread_mutex_unlock(&device->out_mutex);
@@ -936,9 +904,6 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
     if (ch_start_stream(device) == -1)
         return (-1);
 
-    if (ch_init_decode_cx(device) == -1)
-	return (-1);
-
     int r = 0;
 
     // Iterate for number of frames requested.
@@ -1021,7 +986,6 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
         }
     }
 
-    ch_destroy_decode_cx(device);
     ch_stop_stream(device);
     return (r);
 }

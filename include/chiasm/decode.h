@@ -14,6 +14,15 @@ extern "C" {
 #endif
 
 /**
+ * @brief Set output pixel format with a string.
+ *
+ * @param device Device to set output format for.
+ * @param fmt Format to set output to.
+ * @return 0 on success, -1 on failure.
+ */
+int ch_set_out_pixfmt(struct ch_device *device, char *fmt);
+
+/**
  * @brief Initialize a decoding context for the device's video stream.
  *
  * @param device Device to initialize context for.

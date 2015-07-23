@@ -16,6 +16,22 @@
 bool ch_codec_registered = false;
 
 int
+ch_set_out_pixfmt(struct ch_device *device, char *fmt)
+{
+    struct ch_decode_cx *cx = &device->decode_cx;
+
+    if (strcmp(fmt, "GRAY8") == 0)
+	cx->out_pixfmt = AV_PIX_FMT_GRAY8;
+    else if (strcmp(fmt, "RGB24") == 0)
+	cx->out_pixfmt = AV_PIX_FMT_RGB24;
+    else {
+	return (-1);
+    }
+
+    return (0);
+}
+
+int
 ch_init_decode_cx(struct ch_device *device)
 {
     struct ch_decode_cx *cx = &device->decode_cx;
@@ -26,7 +42,15 @@ ch_init_decode_cx(struct ch_device *device)
 	ch_codec_registered = true;
     }
 
-    cx->out_pixfmt = AV_PIX_FMT_RGB24;
+    // Get size needed for output buffer.
+    device->out_buffer.length = avpicture_get_size(cx->out_pixfmt,
+						   device->framesize.width,
+						   device->framesize.height);
+
+    // Allocate output buffer.
+    device->out_buffer.start = ch_calloc(1, device->out_buffer.length);
+    if (device->out_buffer.start == NULL)
+	goto clean;
 
     // Setup I/O frames.
     cx->frame_in = av_frame_alloc();
@@ -103,6 +127,10 @@ ch_destroy_decode_cx(struct ch_device *device)
 {
     struct ch_decode_cx *cx = &device->decode_cx;
 
+    device->out_buffer.length = 0;
+    if (device->out_buffer.start != NULL)
+	free(device->out_buffer.start);
+
     av_frame_free(&cx->frame_in);
     av_frame_free(&cx->frame_out);
 
@@ -142,7 +170,8 @@ ch_decode(struct ch_device *device)
 	packet.data = device->in_buffer->start;
 	packet.size = device->in_buffer->length;
 
-	if (avcodec_decode_video2(cx->codec_cx, cx->frame_in, &finish, &packet) < 0) {
+	if (avcodec_decode_video2(cx->codec_cx, cx->frame_in,
+				  &finish, &packet) < 0) {
 	    ch_error("Failed decoding video.");
 	    av_free_packet(&packet);
 	    return (-1);

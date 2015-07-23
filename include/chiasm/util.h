@@ -12,7 +12,7 @@ extern "C" {
 #define CH_STR2(s) #s
 #define CH_STR(s) CH_STR2(s)
 
-#define CH_OPTS "d:t:b:f:g:"
+#define CH_OPTS "p:d:t:b:f:g:"
 
 #define CH_DEFAULT_DEVICE    "/dev/video0"
 #define CH_DEFAULT_FORMAT    "YUYV"
@@ -21,6 +21,7 @@ extern "C" {
 #define CH_DEFAULT_BUFNUM    5
 #define CH_DEFAULT_TIMEOUT   2.0
 #define CH_DEFAULT_NUMFRAMES 0
+#define CH_DEFAULT_OUTFMT    "RGB24"
 
 #define CH_HELP_D \
     " -d   Device name. " CH_STR(CH_DEFAULT_DEVICE) " by default.\n"
@@ -36,6 +37,9 @@ extern "C" {
 
 #define CH_HELP_T \
     " -t   Timeout in seconds. " CH_STR(CH_DEFAULT_TIMEOUT) " by default.\n"
+
+#define CH_HELP_P \
+    " -p   Output image format code. " CH_STR(CH_DEFAULT_OUTFMT) " by default.\n"
 
 #define CH_CLEAR(x) (memset((x) , 0, sizeof(*(x))))
 
