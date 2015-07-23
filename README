@@ -1,5 +1,4 @@
 Vision tools.
-Uses the Video4Linux device API to get data from video devices.
 
 Named after this thing:
 https://en.wikipedia.org/wiki/Optic_chiasm

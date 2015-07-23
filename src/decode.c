@@ -24,9 +24,8 @@ ch_set_out_pixfmt(struct ch_device *device, char *fmt)
 	cx->out_pixfmt = AV_PIX_FMT_GRAY8;
     else if (strcmp(fmt, "RGB24") == 0)
 	cx->out_pixfmt = AV_PIX_FMT_RGB24;
-    else {
+    else
 	return (-1);
-    }
 
     return (0);
 }
