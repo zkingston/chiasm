@@ -53,7 +53,7 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
             return (-1);
         }
 
-        device->pixelformat = ch_string_to_pixfmt(optarg);
+        device->in_pixfmt = ch_string_to_pixfmt(optarg);
         break;
 
     case 'g':
@@ -231,7 +231,7 @@ ch_init_device(struct ch_device *device)
     pthread_mutex_init(&device->out_mutex, NULL);
 
     device->framesize = (struct ch_rect) {CH_DEFAULT_WIDTH, CH_DEFAULT_HEIGHT};
-    device->pixelformat = ch_string_to_pixfmt(CH_DEFAULT_FORMAT);
+    device->in_pixfmt = ch_string_to_pixfmt(CH_DEFAULT_FORMAT);
     device->timeout = ch_sec_to_timeval(CH_DEFAULT_TIMEOUT);
     device->stream = false;
     device->thread = 0;
@@ -347,7 +347,7 @@ ch_enum_frmsizes(struct ch_device *device)
     CH_CLEAR(&frmsize);
 
     frmsize.index = 0;
-    frmsize.pixel_format = device->pixelformat;
+    frmsize.pixel_format = device->in_pixfmt;
 
     int r = 0;
     while ((r = ch_ioctl(device, VIDIOC_ENUM_FRAMESIZES, &frmsize)) != 1)
@@ -643,7 +643,7 @@ ch_validate_fmt(struct ch_device *device)
 
     size_t idx;
     for (idx = 0; idx < fmts->length; idx++)
-        if (fmts->fmts[idx] == device->pixelformat)
+        if (fmts->fmts[idx] == device->in_pixfmt)
             break;
 
     int r = 0;
@@ -703,7 +703,7 @@ ch_set_fmt(struct ch_device *device)
     fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     fmt.fmt.pix.width = device->framesize.width;
     fmt.fmt.pix.height = device->framesize.height;
-    fmt.fmt.pix.pixelformat = device->pixelformat;
+    fmt.fmt.pix.pixelformat = device->in_pixfmt;
     fmt.fmt.pix.field = V4L2_FIELD_NONE;
     fmt.fmt.pix.bytesperline = 0;
 
@@ -999,6 +999,7 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
             break;
         }
 
+	// Decode the input video stream to a simple RGB24 image.
         if (ch_decode(device) == -1) {
             pthread_mutex_unlock(&device->out_mutex);
             break;

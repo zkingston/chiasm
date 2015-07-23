@@ -88,11 +88,13 @@ struct ch_frmbuf {
  * @brief Decoding context to use in frame decoding for compressed streams.
  */
 struct ch_decode_cx {
-    AVCodecContext *codec_cx;  /**< libavcodec codec context. */
-    AVFrame *frame_in;         /**< Allocated input frame. */
-    AVFrame *frame_out;        /**< Allocated output frame. */
-    struct SwsContext *sws_cx; /**< SWS context. */
-    bool compressed;           /**< Is this a compressed stream? */
+    AVCodecContext    *codec_cx;   /**< libavcodec codec context. */
+    AVFrame           *frame_in;   /**< Allocated input frame. */
+    AVFrame           *frame_out;  /**< Allocated output frame. */
+    struct SwsContext *sws_cx;     /**< SWS context. */
+    bool               compressed; /**< Is this a compressed stream? */
+    uint32_t           out_pixfmt; /**< Format of outgoing pixels from stream.
+				        AV pixelformat. */
 };
 
 /**
@@ -110,8 +112,9 @@ struct ch_device {
     struct ch_frmbuf out_buffer;   /**< Output buffer. Contains RGB24 image. */
     pthread_mutex_t  out_mutex;    /**< Mutex to lock device buffers. */
 
-    struct ch_rect framesize;      /**< Size of frames in image stream. */
-    uint32_t       pixelformat;    /**< Format of incoming pixels from stream. */
+    struct ch_rect   framesize;    /**< Size of frames in image stream. */
+    uint32_t         in_pixfmt;    /**< Format of incoming pixels from stream.
+				        V4L pixelformat. */
 
     struct timeval timeout;        /**< Timeout on select to get new image. */
     bool stream;                   /**< Is the device currently streaming? */

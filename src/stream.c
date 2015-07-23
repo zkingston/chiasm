@@ -69,7 +69,7 @@ list_formats(struct ch_device *device)
 
         printf("%s:", pixfmt_buf);
 
-        device->pixelformat = fmts->fmts[idx];
+        device->in_pixfmt = fmts->fmts[idx];
         struct ch_frmsizes *frmsizes = ch_enum_frmsizes(device);
         if (frmsizes == NULL)
             break;

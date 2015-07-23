@@ -1,9 +1,0 @@
-* Major Features
-Decode video streams using libavcodec.
-
-* Minor Features
-GUI Stuff
-   - Error checking for GUI calls.
-   - Destroy handler with webcam shutdown.
-   - Investigate other methods of drawing the RGB buffer.
-   - Window resizing.
