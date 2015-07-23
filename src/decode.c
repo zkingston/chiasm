@@ -8,9 +8,15 @@
 
 #include <jpeglib.h>
 
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+#include <libswscale/swscale.h>
+
 #include <linux/videodev2.h>
 
 #include <chiasm.h>
+
+bool ch_codec_registered = false;
 
 /**
  * @brief Clamp a double value to a unsigned byte value.
@@ -136,28 +142,21 @@ exit:
     return (r);
 }
 
-#include <stdio.h>
-
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libswscale/swscale.h>
-
-bool ch_codec_registered = false;
-
 int
 ch_init_decode_cx(struct ch_device *device)
 {
     struct ch_decode_cx *cx = &device->decode_cx;
 
+    // Register codecs so they can be found.
     if (!ch_codec_registered) {
 	av_register_all();
 	ch_codec_registered = true;
     }
 
     enum AVCodecID codec_id = AV_CODEC_ID_NONE;
-
     cx->compressed = true;
 
+    // Find codec ID based on input pixel format.
     switch (device->pixelformat) {
     case V4L2_PIX_FMT_YUYV:
 	cx->compressed = false;
@@ -176,6 +175,7 @@ ch_init_decode_cx(struct ch_device *device)
 	return (-1);
     }
 
+    // Find and allocate codec context.
     AVCodec *codec = avcodec_find_decoder(codec_id);
     if (codec == NULL) {
 	ch_error("Failed to find requested codec.");
@@ -196,6 +196,7 @@ ch_init_decode_cx(struct ch_device *device)
 	goto clean;
     }
 
+    // Setup I/O frames.
     cx->frame_in = av_frame_alloc();
     cx->frame_out = av_frame_alloc();
 
@@ -230,6 +231,9 @@ ch_destroy_decode_cx(struct ch_device *device)
         avcodec_close(cx->codec_cx);
         av_free(cx->codec_cx);
     }
+
+    if (cx->sws_cx != NULL)
+	sws_freeContext(cx->sws_cx);
 }
 
 int
@@ -237,6 +241,8 @@ ch_decode(struct ch_device *device)
 {
     struct ch_decode_cx *cx = &device->decode_cx;
 
+    // Currently a quick hack fix for uncompressed YUV422P video streams.
+    // Should be done through the same interface, uncertain how.
     if (!cx->compressed) {
 	ch_YUYV_to_RGB(device->in_buffer, &device->out_buffer);
 	return (0);
@@ -244,6 +250,7 @@ ch_decode(struct ch_device *device)
 
     int finish = 0;
 
+    // Initialize packet to use input buffer.
     AVPacket packet;
     av_init_packet(&packet);
 
@@ -257,28 +264,33 @@ ch_decode(struct ch_device *device)
 	goto exit;
     }
 
+    // Convert image into RGB24 upon success.
     if (finish) {
-	struct SwsContext *sws_cx = sws_getContext(
-	    cx->codec_cx->width,
-	    cx->codec_cx->height,
-	    cx->codec_cx->pix_fmt,
-	    cx->codec_cx->width,
-	    cx->codec_cx->height,
-	    AV_PIX_FMT_RGB24,
-	    SWS_BILINEAR,
-	    NULL,
-	    NULL,
-	    NULL
-	);
+	// Allocate the SWS context if we have not already.
+	if (cx->sws_cx == NULL) {
+	  cx->sws_cx = sws_getContext(
+		cx->codec_cx->width,
+		cx->codec_cx->height,
+		cx->codec_cx->pix_fmt,
+		cx->codec_cx->width,
+		cx->codec_cx->height,
+		AV_PIX_FMT_RGB24,
+		SWS_BILINEAR,
+		NULL,
+		NULL,
+		NULL
+		);
 
-	if (sws_cx == NULL) {
-	    ch_error("Failed to initialize SWS context.");
-	    r = -1;
-	    goto exit;
+	    if (cx->sws_cx == NULL) {
+		ch_error("Failed to initialize SWS context.");
+		r = -1;
+		goto exit;
+	    }
 	}
 
+	// Convert the image into a RGB24 array.
 	sws_scale(
-	    sws_cx,
+	    cx->sws_cx,
 	    (uint8_t const * const *) cx->frame_in->data,
 	    cx->frame_in->linesize,
 	    0,
@@ -287,8 +299,6 @@ ch_decode(struct ch_device *device)
 	    cx->frame_out->linesize
 	);
 
-	sws_freeContext(sws_cx);
-
     } else {
 	ch_error("No frame received.");
 	r = -1;
@@ -296,6 +306,5 @@ ch_decode(struct ch_device *device)
 
 exit:
     av_free_packet(&packet);
-
     return (r);
 }
