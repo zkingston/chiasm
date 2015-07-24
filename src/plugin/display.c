@@ -44,7 +44,7 @@ on_expose_event(GtkWidget *widget, GdkEventExpose *event, gpointer data)
 	device->framesize.height,
 	GDK_RGB_DITHER_MAX,
 	device->out_buffer.start,
-	device->framesize.width * 3
+	device->framesize.width
     );
 
     pthread_mutex_unlock(&device->out_mutex);

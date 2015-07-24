@@ -26,7 +26,7 @@ signal_handler(int signal)
     fprintf(stderr, "\nSignal %s received. Cleaning up and exiting...\n",
             strsignal(signal));
 
-    ch_stop_stream(&device);
+    device.stream = false;
 }
 
 /**
