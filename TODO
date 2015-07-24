@@ -10,7 +10,6 @@ Camera Calibration routines.
 * Minor things
 Set up Doxygen.
 Test on additional cameras.
-Grab highest framerate from device.
 
 * Possible things
 Plugins can request output image format.

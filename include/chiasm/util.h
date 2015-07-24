@@ -52,7 +52,7 @@ extern "C" {
  * @param size Size of each element.
  * @return Pointer to allocated memory on success, NULL on failure.
  */
-inline void *ch_calloc(size_t nmemb, size_t size);
+void *ch_calloc(size_t nmemb, size_t size);
 
 /**
  * @brief Converts a pixelformat character code to a null-terminated string.
@@ -61,7 +61,7 @@ inline void *ch_calloc(size_t nmemb, size_t size);
  * @param buf Buffer to fill in. Must be 5 elements long.
  * @return None.
  */
-inline void ch_pixfmt_to_string(uint32_t pixfmt, char *buf);
+void ch_pixfmt_to_string(uint32_t pixfmt, char *buf);
 
 /**
  * @brief Converts a string into a pixelformat character code.
@@ -69,7 +69,7 @@ inline void ch_pixfmt_to_string(uint32_t pixfmt, char *buf);
  * @param buf Buffer to convert.
  * @return Pixel format code from buffer.
  */
-inline uint32_t ch_string_to_pixfmt(const char *buf);
+uint32_t ch_string_to_pixfmt(const char *buf);
 
 /**
  * @brief Converts an amount in seconds to a struct timeval.
@@ -77,7 +77,7 @@ inline uint32_t ch_string_to_pixfmt(const char *buf);
  * @param seconds Time in seconds.
  * @return Time in a struct timeval.
  */
-inline struct timeval ch_sec_to_timeval(double seconds);
+struct timeval ch_sec_to_timeval(double seconds);
 
 /**
  * @brief Enables or disables logging in library functions.

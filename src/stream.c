@@ -80,8 +80,7 @@ list_formats(struct ch_device *device)
             device->framesize.height = frmsizes->frmsizes[jdx].height;
 
             printf(" %4ux%4u (%4.1f fps)",
-                   device->framesize.width,
-                   device->framesize.height,
+                   device->framesize.width, device->framesize.height,
                    ch_get_fps(device));
 
             if ((jdx + 1) % 3 == 0)
@@ -173,6 +172,7 @@ main(int argc, char *argv[])
     // Enable error output to stderr.
     ch_set_stderr(true);
 
+    // Initialize early for cleanup control flow.
     int r = 0;
     size_t idx = 0;
     size_t jdx = 0;
@@ -180,17 +180,15 @@ main(int argc, char *argv[])
     if ((r = ch_open_device(&device)) == -1)
         goto cleanup;
 
-    if (list)
-        if ((r = list_formats(&device)) == -1)
-            goto cleanup;
-
-    if (list)
+    if (list) {
+        r = list_formats(&device);
         goto cleanup;
+    }
 
     if ((r = ch_set_fmt(&device)) == -1)
         goto cleanup;
 
-    for (idx = 0; idx < plugin_max; idx++)
+    for (; idx < plugin_max; idx++)
 	if (plugins[idx]->init)
 	    if ((r = plugins[idx]->init(&device)) == -1)
 		goto cleanup;
@@ -198,7 +196,7 @@ main(int argc, char *argv[])
     r = ch_stream(&device, n_frames, stream_callback);
 
 cleanup:
-    for (jdx = 0; jdx < idx; jdx++) {
+    for (; jdx < idx; jdx++) {
 	if (plugins[jdx]->quit)
 	    plugins[jdx]->quit(&device);
 
