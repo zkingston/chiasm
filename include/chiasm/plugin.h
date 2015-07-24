@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include <chiasm/types.h>
+
 /**
  * @brief Loads a chiasm plugin.
  *

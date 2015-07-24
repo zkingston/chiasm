@@ -365,6 +365,36 @@ ch_destroy_frmsizes(struct ch_frmsizes *frmsizes)
     free(frmsizes);
 }
 
+double
+ch_get_fps(struct ch_device *device)
+{
+    struct v4l2_frmivalenum frmival;
+    CH_CLEAR(&frmival);
+
+    frmival.index = 0;
+    frmival.pixel_format = device->in_pixfmt;
+    frmival.width = device->framesize.width;
+    frmival.height = device->framesize.height;
+
+    double frmrate = 0.0;
+
+    while (ch_ioctl(device, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) == 0) {
+        // Only supporting discrete frame intervals.
+        if (frmival.type == V4L2_FRMIVAL_TYPE_DISCRETE) {
+            double temp_frmrate = 1.0 /
+                ((double) frmival.discrete.numerator
+                 / (double) frmival.discrete.denominator);
+
+            if (temp_frmrate > frmrate)
+                frmrate = temp_frmrate;
+        }
+
+        frmival.index++;
+    }
+
+    return (frmrate);
+}
+
 /**
  * @brief Helper function to iterate over a range of camera controls.
  *

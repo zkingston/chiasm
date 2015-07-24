@@ -7,6 +7,8 @@ extern "C" {
 
 #include <libavcodec/avcodec.h>
 
+#include <chiasm/types.h>
+
 // Backwards compatibility.
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(55,28,1)
 #define av_frame_alloc  avcodec_alloc_frame

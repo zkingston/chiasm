@@ -1,0 +1,18 @@
+* Major things
+AprilTag plugin to process image stream.
+New display plugin to also show tag locations. Use some form of GL.
+   - Maybe WebGL?
+
+Camera Calibration routines.
+   - Either reimplement or use OpenCV backend.
+   - Possibly use a version of the AprilTag calibration routine?
+
+* Minor things
+Set up Doxygen.
+Test on additional cameras.
+Grab highest framerate from device.
+
+* Possible things
+Plugins can request output image format.
+Multiple output formats
+Asynchronous plugin callbacks.

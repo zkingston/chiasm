@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include <chiasm/types.h>
+
 /**
  * @brief Parses a command line option and switch for a device parameter.
  *        Accepted parameters are detailed in CH_OPTS.
@@ -73,6 +75,14 @@ struct ch_frmsizes *ch_enum_frmsizes(struct ch_device *device);
  * @return None.
  */
 void ch_destroy_frmsizes(struct ch_frmsizes *frmsizes);
+
+/**
+ * @brief Returns highest framerate available for a device's current format.
+ *
+ * @param device Device to get the framerate for.
+ * @return The maximum frames-per-second the device can achieve.
+ */
+double ch_get_fps(struct ch_device *device);
 
 /**
  * @brief Return a list of all supported controls on a device.

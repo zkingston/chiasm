@@ -9,6 +9,8 @@ extern "C" {
 #include <stdint.h>
 #include <time.h>
 
+#include <chiasm/types.h>
+
 #define CH_STR2(s) #s
 #define CH_STR(s) CH_STR2(s)
 

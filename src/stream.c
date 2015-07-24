@@ -75,13 +75,22 @@ list_formats(struct ch_device *device)
             break;
 
         size_t jdx;
-        for (jdx = 0; jdx < frmsizes->length; jdx++)
-            printf(" %ux%u",
-                    frmsizes->frmsizes[jdx].width,
-                    frmsizes->frmsizes[jdx].height);
+        for (jdx = 0; jdx < frmsizes->length; jdx++) {
+            device->framesize.width = frmsizes->frmsizes[jdx].width;
+            device->framesize.height = frmsizes->frmsizes[jdx].height;
+
+            printf(" %4ux%4u (%4.1f fps)",
+                   device->framesize.width,
+                   device->framesize.height,
+                   ch_get_fps(device));
+
+            if ((jdx + 1) % 3 == 0)
+                printf("\n     ");
+
+        }
 
         ch_destroy_frmsizes(frmsizes);
-        printf("\n");
+        printf("\n\n");
     }
 
     ch_destroy_fmts(fmts);

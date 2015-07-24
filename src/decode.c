@@ -151,16 +151,16 @@ ch_decode(struct ch_device *device)
     int finish = 0;
 
     if (!cx->compressed) {
-	finish = 1;
-	in_pixfmt = AV_PIX_FMT_YUYV422;
-
 	if (avpicture_fill((AVPicture *) cx->frame_in,
 			   device->in_buffer->start, AV_PIX_FMT_YUYV422,
 			   device->framesize.width, device->framesize.height) < 0) {
 	    ch_error("Failed to setup output frame fields.");
 	    return (-1);
-
 	}
+
+	finish = 1;
+	in_pixfmt = AV_PIX_FMT_YUYV422;
+
     } else {
 	// Initialize packet to use input buffer.
 	AVPacket packet;
@@ -180,7 +180,7 @@ ch_decode(struct ch_device *device)
 	in_pixfmt = cx->codec_cx->pix_fmt;
     }
 
-    // Convert image into RGB24 upon success.
+    // Convert to output image format.
     if (finish) {
 	// Allocate the SWS context if we have not already.
 	if (cx->sws_cx == NULL) {

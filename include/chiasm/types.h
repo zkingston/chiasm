@@ -40,6 +40,14 @@ struct ch_frmsizes {
 };
 
 /**
+ * @brief Description of a frame-interval in fractions of a second.
+ */
+struct ch_frmival {
+    uint32_t numerator;
+    uint32_t denominator;
+};
+
+/**
  * @brief Union describing an element of a device control menu item.
  */
 union ch_ctrl_menu_item {
