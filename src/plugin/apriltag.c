@@ -38,32 +38,15 @@ CH_DL_INIT(struct ch_device *device)
     return (0);
 }
 
-image_u8_t
-ch_wrap_output(struct ch_device *device)
+int
+CH_DL_CALL(struct ch_device *device)
 {
-    /** image_u8_t *new = image_u8_create(device->framesize.width, device->framesize.height);
-
-    int i;
-    for (i = 0; i < new->height; i++)
-        memcpy(&new->buf[i * new->stride], &device->out_buffer.start[i * new->width], new->width);
-
-    return (new);
-    */
-
-    image_u8_t new = {
+    image_u8_t image = {
         .width = device->framesize.width,
         .height = device->framesize.height,
         .stride = device->out_stride,
         .buf = device->out_buffer.start
     };
-
-    return (new);
-}
-
-int
-CH_DL_CALL(struct ch_device *device)
-{
-    image_u8_t image = ch_wrap_output(device);
 
     zarray_t *detections = apriltag_detector_detect(tag_detector, &image);
 
@@ -72,13 +55,10 @@ CH_DL_CALL(struct ch_device *device)
         apriltag_detection_t *det;
         zarray_get(detections, i, &det);
 
-        fprintf(stderr, "detection %3d: id (%2dx%2d)-%-4d, hamming %d, goodness %8.3f, margin %8.3f\n",
-               i, det->family->d*det->family->d,
-               det->family->h, det->id, det->hamming, det->goodness, det->decision_margin);
+        fprintf(stderr, "Tag id %3d detected.\n", det->id);
     }
 
     apriltag_detections_destroy(detections);
-    // image_u8_destroy(image);
 
     return (0);
 }

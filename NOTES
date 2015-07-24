@@ -1,0 +1,3 @@
+Put the local path to where the AprilTag C library has been compiled in the Makefile.
+Edit the AprilTag Makefile to have -fPIC in the cflags, needed for the plugin.
+In order for the AprilTag plugin to work, have to specify alignment of 96 and format of GRAY8

@@ -1,7 +1,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
+
 #include <gtk/gtk.h>
+#include <libavcodec/avcodec.h>
 
 #include <chiasm.h>
 
@@ -32,23 +34,35 @@ on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer data)
     if (!device->stream)
 	return (FALSE);
 
-    pthread_mutex_lock(&device->out_mutex);
+    int x;
+    for (x = 0; x < device->framesize.width; x++) {
+        int y;
+        for (y = 0; y < device->framesize.height; y++) {
+            cairo_rectangle(cr, x, y, 1, 1);
 
 
-    cairo_surface_t *image = cairo_image_surface_create_for_data(
-        device->out_buffer.start,
-        CAIRO_FORMAT_RGB24,
-        device->framesize.width,
-        device->framesize.height,
-        device->framesize.width * 4
-    );
+            double r, g, b;
+            if (device->decode_cx.out_pixfmt == AV_PIX_FMT_RGB24) {
+                uint8_t *buf = &device->out_buffer.start[3 * device->out_stride * y];
+                int o = x * 3;
 
-    cairo_set_source_surface(cr, image, 0, 0);
-    cairo_paint(cr);
+                r = buf[o + 0] / 255.0;
+                g = buf[o + 1] / 255.0;
+                b = buf[o + 2] / 255.0;
 
-    cairo_surface_destroy(image);
+            } else {
+                uint8_t *buf = &device->out_buffer.start[device->out_stride * y];
+                int o = x;
 
-    pthread_mutex_unlock(&device->out_mutex);
+                r = buf[o + 0] / 255.0;
+                g = buf[o + 0] / 255.0;
+                b = buf[o + 0] / 255.0;
+            }
+
+            cairo_set_source_rgb(cr, r, g, b);
+            cairo_fill(cr);
+        }
+    }
 
     return (FALSE);
 }
