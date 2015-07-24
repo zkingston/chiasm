@@ -119,6 +119,7 @@ struct ch_device {
 
     struct ch_frmbuf out_buffer;   /**< Output buffer. Contains RGB24 image. */
     pthread_mutex_t  out_mutex;    /**< Mutex to lock device buffers. */
+    uint32_t         out_stride;   /**< Stride of each row of the out buffer. */
 
     struct ch_rect   framesize;    /**< Size of frames in image stream. */
     uint32_t         in_pixfmt;    /**< Format of incoming pixels from stream.

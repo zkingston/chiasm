@@ -44,7 +44,7 @@ ch_init_decode_cx(struct ch_device *device)
     // Get size needed for output buffer.
     device->out_buffer.length = avpicture_get_size(cx->out_pixfmt,
 						   device->framesize.width,
-						   device->framesize.height);
+                                                   device->out_stride);
 
     // Allocate output buffer.
     device->out_buffer.start = ch_calloc(1, device->out_buffer.length);
@@ -62,7 +62,7 @@ ch_init_decode_cx(struct ch_device *device)
 
     if (avpicture_fill((AVPicture *) cx->frame_out,
 		       device->out_buffer.start, cx->out_pixfmt,
-		       device->framesize.width, device->framesize.height) < 0) {
+		       device->out_stride, device->framesize.height) < 0) {
 	ch_error("Failed to setup output frame fields.");
 	goto clean;
     };

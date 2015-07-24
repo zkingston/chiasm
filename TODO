@@ -1,7 +1,9 @@
 * Major things
-AprilTag plugin to process image stream.
 New display plugin to also show tag locations. Use some form of GL.
    - Maybe WebGL?
+
+Make stream have worker thread pool to deque buffers and work on
+   callbacks.
 
 Camera Calibration routines.
    - Either reimplement or use OpenCV backend.
@@ -13,5 +15,5 @@ Test on additional cameras.
 
 * Possible things
 Plugins can request output image format.
-Multiple output formats
+Multiple output formats simultaneously.
 Asynchronous plugin callbacks.

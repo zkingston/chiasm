@@ -14,7 +14,7 @@ extern "C" {
 #define CH_STR2(s) #s
 #define CH_STR(s) CH_STR2(s)
 
-#define CH_OPTS "p:d:t:b:f:g:"
+#define CH_OPTS "s:p:d:t:b:f:g:"
 
 #define CH_DEFAULT_DEVICE    "/dev/video0"
 #define CH_DEFAULT_FORMAT    "YUYV"
@@ -24,6 +24,7 @@ extern "C" {
 #define CH_DEFAULT_TIMEOUT   2.0
 #define CH_DEFAULT_NUMFRAMES 0
 #define CH_DEFAULT_OUTFMT    "RGB24"
+#define CH_DEFAULT_ALIGN     1
 
 #define CH_HELP_D \
     " -d   Device name. " CH_STR(CH_DEFAULT_DEVICE) " by default.\n"
@@ -42,6 +43,9 @@ extern "C" {
 
 #define CH_HELP_P \
     " -p   Output image format code. " CH_STR(CH_DEFAULT_OUTFMT) " by default.\n"
+
+#define CH_HELP_S \
+    " -s   Image output line start-byte alignment. " CH_STR(CH_DEFAULT_ALIGN) " by default.\n"
 
 #define CH_CLEAR(x) (memset((x) , 0, sizeof(*(x))))
 
@@ -78,6 +82,14 @@ uint32_t ch_string_to_pixfmt(const char *buf);
  * @return Time in a struct timeval.
  */
 struct timeval ch_sec_to_timeval(double seconds);
+
+/**
+ * @brief Calculate image stride from framesize and alignment value.
+ *
+ * @param device Device to calculate stride for.
+ * @param alignment Start-byte alignment value.
+ */
+void ch_calc_stride(struct ch_device *device, uint32_t alignment);
 
 /**
  * @brief Enables or disables logging in library functions.

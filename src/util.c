@@ -59,6 +59,17 @@ ch_sec_to_timeval(double seconds)
     return (ret);
 }
 
+inline void
+ch_calc_stride(struct ch_device *device, uint32_t alignment)
+{
+    uint32_t stride = device->framesize.width;
+
+    if ((stride % alignment) != 0)
+        stride += alignment - (stride % alignment);
+
+    device->out_stride = stride;
+}
+
 void
 ch_set_log(bool val) {
     ch_log = val;

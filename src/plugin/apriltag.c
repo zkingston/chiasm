@@ -38,14 +38,24 @@ CH_DL_INIT(struct ch_device *device)
     return (0);
 }
 
-image_u8_t *
+image_u8_t
 ch_wrap_output(struct ch_device *device)
 {
-    image_u8_t *new = image_u8_create(device->framesize.width, device->framesize.height);
+    /** image_u8_t *new = image_u8_create(device->framesize.width, device->framesize.height);
 
     int i;
     for (i = 0; i < new->height; i++)
         memcpy(&new->buf[i * new->stride], &device->out_buffer.start[i * new->width], new->width);
+
+    return (new);
+    */
+
+    image_u8_t new = {
+        .width = device->framesize.width,
+        .height = device->framesize.height,
+        .stride = device->out_stride,
+        .buf = device->out_buffer.start
+    };
 
     return (new);
 }
@@ -53,9 +63,9 @@ ch_wrap_output(struct ch_device *device)
 int
 CH_DL_CALL(struct ch_device *device)
 {
-    image_u8_t *image = ch_wrap_output(device);
+    image_u8_t image = ch_wrap_output(device);
 
-    zarray_t *detections = apriltag_detector_detect(tag_detector, image);
+    zarray_t *detections = apriltag_detector_detect(tag_detector, &image);
 
     int i;
     for (i = 0; i < zarray_size(detections); i++) {
@@ -68,7 +78,7 @@ CH_DL_CALL(struct ch_device *device)
     }
 
     apriltag_detections_destroy(detections);
-    image_u8_destroy(image);
+    // image_u8_destroy(image);
 
     return (0);
 }

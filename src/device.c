@@ -63,6 +63,7 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
             return (-1);
         }
 
+        ch_calc_stride(device, CH_DEFAULT_ALIGN);
         break;
 
     case 'p':
@@ -71,6 +72,20 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
 	    return (-1);
 	}
 	break;
+
+    case 's': {
+        char *ptr;
+        uint32_t r = strtoul(optarg, &ptr, 10);
+
+        if (r == 0 && ptr == optarg) {
+            fprintf(stderr, "Invalid stride.\n");
+            return (-1);
+        }
+
+        ch_calc_stride(device, r);
+        break;
+    }
+
 
     default:
         fprintf(stderr, "Invalid option for device parse.\n");
@@ -202,6 +217,8 @@ ch_init_device(struct ch_device *device)
     device->timeout = ch_sec_to_timeval(CH_DEFAULT_TIMEOUT);
     device->stream = false;
     device->thread = 0;
+
+    ch_calc_stride(device, CH_DEFAULT_ALIGN);
 
     ch_set_out_pixfmt(device, "RGB24");
 }

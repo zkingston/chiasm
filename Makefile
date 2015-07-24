@@ -3,8 +3,8 @@ CFLAGS  = -Wall -Wextra -g3 -O3 -Iinclude -fPIC
 LDFLAGS = -lswscale -lavutil -lavformat -lavcodec -lpthread -ldl
 
 # GTK configuration
-CFLAGS  += `pkg-config --cflags gtk+-2.0`
-LDFLAGS += `pkg-config --libs gtk+-2.0 --libs gthread-2.0`
+CFLAGS  += `pkg-config --cflags gtk+-3.0`
+LDFLAGS += `pkg-config --libs gtk+-3.0`
 
 # AprilTag configuration. Requires C99 mode.
 ATDIR   = ../apriltag
