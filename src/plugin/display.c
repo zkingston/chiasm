@@ -8,6 +8,8 @@
 #include <chiasm.h>
 
 pthread_t gui_thread;
+struct ch_frmbuf outbuf;
+int status = 0;
 
 /**
  * @brief Callback function that occurs on a timer. Used for repaint.
@@ -18,6 +20,43 @@ timer_callback(GtkWidget *widget)
     gtk_widget_queue_draw(widget);
 
     return (TRUE);
+}
+
+static int
+convert_image(struct ch_device *device, struct ch_frmbuf *out) {
+    size_t x;
+    for (x = 0; x < device->framesize.width; x++) {
+        size_t y;
+        for (y = 0; y < device->framesize.height; y++) {
+            uint8_t *buf;
+            uint8_t r, g, b;
+            switch (device->decode_cx.out_pixfmt) {
+            case AV_PIX_FMT_RGB24:
+                buf = &device->out_buffer.start[3 * device->out_stride * y];
+
+                r = buf[x * 3 + 0];
+                g = buf[x * 3 + 1];
+                b = buf[x * 3 + 2];
+                break;
+
+            case AV_PIX_FMT_GRAY8:
+                buf = &device->out_buffer.start[device->out_stride * y];
+                r = g = b = buf[x];
+                break;
+
+            default:
+                ch_error("Invalid image type for display.");
+                return (-1);
+            }
+
+            uint8_t *out_buf = &out->start[4 * device->framesize.width * y];
+            out_buf[x * 4 + 2] = r;
+            out_buf[x * 4 + 1] = g;
+            out_buf[x * 4 + 0] = b;
+        }
+    }
+
+    return (0);
 }
 
 /**
@@ -34,35 +73,26 @@ on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer data)
     if (!device->stream)
 	return (FALSE);
 
-    int x;
-    for (x = 0; x < device->framesize.width; x++) {
-        int y;
-        for (y = 0; y < device->framesize.height; y++) {
-            cairo_rectangle(cr, x, y, 1, 1);
-
-
-            double r, g, b;
-            if (device->decode_cx.out_pixfmt == AV_PIX_FMT_RGB24) {
-                uint8_t *buf = &device->out_buffer.start[3 * device->out_stride * y];
-                int o = x * 3;
-
-                r = buf[o + 0] / 255.0;
-                g = buf[o + 1] / 255.0;
-                b = buf[o + 2] / 255.0;
-
-            } else {
-                uint8_t *buf = &device->out_buffer.start[device->out_stride * y];
-                int o = x;
-
-                r = buf[o + 0] / 255.0;
-                g = buf[o + 0] / 255.0;
-                b = buf[o + 0] / 255.0;
-            }
-
-            cairo_set_source_rgb(cr, r, g, b);
-            cairo_fill(cr);
-        }
+    if (convert_image(device, &outbuf) == -1) {
+        status = -1;
+        return (FALSE);
     }
+
+    int stride = cairo_format_stride_for_width(CAIRO_FORMAT_RGB24,
+                                               device->framesize.width);
+
+    cairo_surface_t *image = cairo_image_surface_create_for_data(
+        outbuf.start,
+        CAIRO_FORMAT_RGB24,
+        device->framesize.width,
+        device->framesize.height,
+        stride
+    );
+
+    cairo_set_source_surface(cr, image, 0, 0);
+    cairo_paint(cr);
+
+    cairo_surface_destroy(image);
 
     return (FALSE);
 }
@@ -74,6 +104,10 @@ static void *
 setup_gui(void *arg)
 {
     struct ch_device *device = (struct ch_device *) arg;
+
+    outbuf.length = 4 * device->framesize.width * device->framesize.height;
+    outbuf.start =
+        ch_calloc(1, outbuf.length);
 
     gtk_init(0, NULL);
 
@@ -116,6 +150,14 @@ CH_DL_INIT(struct ch_device *device)
     }
 
     return (0);
+}
+
+int
+CH_DL_CALL(struct ch_device *device)
+{
+    device = (struct ch_device *) device;
+
+    return (status);
 }
 
 int
