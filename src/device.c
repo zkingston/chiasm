@@ -968,8 +968,6 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
                 + CH_FPS_UPDATE * (1.0 / (t - pt));
         pt = t;
 
-        fprintf(stderr, "%f\n", device->fps);
-
         // Wait on select for a new frame.
         fd_set fds;
         FD_ZERO(&fds);
