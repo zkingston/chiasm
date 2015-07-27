@@ -77,9 +77,9 @@ CH_DL_INIT(struct ch_device *device)
     tag_detector = apriltag_detector_create();
     apriltag_detector_add_family(tag_detector, tag_family);
 
-    tag_detector->quad_decimate = 1.0;
-    tag_detector->quad_sigma = 0.5;
-    tag_detector->nthreads = 64;
+    tag_detector->quad_decimate = 3;
+    tag_detector->quad_sigma = 0.0;
+    tag_detector->nthreads = 128;
     tag_detector->debug = 0;
 
     tag_detector->refine_edges = 1;
