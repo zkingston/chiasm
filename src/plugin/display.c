@@ -9,7 +9,6 @@
 
 pthread_t gui_thread;
 struct ch_frmbuf outbuf;
-int status = 0;
 
 /**
  * @brief Callback function that occurs on a timer. Used for repaint.
@@ -73,10 +72,8 @@ on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer data)
     if (!device->stream)
 	return (FALSE);
 
-    if (convert_image(device, &outbuf) == -1) {
-        status = -1;
+    if (convert_image(device, &outbuf) == -1)
         return (FALSE);
-    }
 
     int stride = cairo_format_stride_for_width(CAIRO_FORMAT_RGB24,
                                                device->framesize.width);
@@ -94,6 +91,23 @@ on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer data)
 
     cairo_surface_destroy(image);
 
+    cairo_select_font_face(cr, "Sans",
+                           CAIRO_FONT_SLANT_NORMAL,
+                           CAIRO_FONT_WEIGHT_BOLD);
+
+    char buf[100];
+    sprintf(buf, "FPS: %3.2f", device->fps);
+
+    cairo_set_font_size(cr, 18);
+
+    cairo_text_extents_t extents;
+    cairo_text_extents(cr, buf, &extents);
+
+
+    cairo_set_source_rgb(cr, 1, 1, 1);
+    cairo_move_to(cr, 10, 18);
+    cairo_show_text(cr, buf);
+
     return (FALSE);
 }
 
@@ -105,6 +119,7 @@ setup_gui(void *arg)
 {
     struct ch_device *device = (struct ch_device *) arg;
 
+    // Create output buffer for Cairo graphics.
     outbuf.length = 4 * device->framesize.width * device->framesize.height;
     outbuf.start =
         ch_calloc(1, outbuf.length);
@@ -112,6 +127,8 @@ setup_gui(void *arg)
     gtk_init(0, NULL);
 
     GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+
+    // Set up drawing area.
     GtkWidget *drawRGB = gtk_drawing_area_new();
     gtk_container_add(GTK_CONTAINER(window), drawRGB);
 
@@ -150,14 +167,6 @@ CH_DL_INIT(struct ch_device *device)
     }
 
     return (0);
-}
-
-int
-CH_DL_CALL(struct ch_device *device)
-{
-    device = (struct ch_device *) device;
-
-    return (status);
 }
 
 int

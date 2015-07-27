@@ -26,6 +26,8 @@ extern "C" {
 #define CH_DEFAULT_OUTFMT    "RGB24"
 #define CH_DEFAULT_ALIGN     1
 
+#define CH_FPS_UPDATE        0.3
+
 #define CH_HELP_D \
     " -d   Device name. " CH_STR(CH_DEFAULT_DEVICE) " by default.\n"
 
@@ -82,6 +84,30 @@ uint32_t ch_string_to_pixfmt(const char *buf);
  * @return Time in a struct timeval.
  */
 struct timeval ch_sec_to_timeval(double seconds);
+
+/**
+ * @brief Converts a struct timeval to an amount in seconds.
+ *
+ * @param t The struct timeval to convert.
+ * @return Time in seconds.
+ */
+double ch_timeval_to_sec(struct timeval t);
+
+/**
+ * @brief Converts an amount in seconds to a struct timespec.
+ *
+ * @param seconds Amount in seconds.
+ * @return The value in a struct timespec.
+ */
+struct timespec ch_sec_to_timespec(double seconds);
+
+/**
+ * @brief Converts an amount in a struct timespec to seconds.
+ *
+ * @param t Amount in a struct timespec.
+ * @return The value in seconds.
+ */
+double ch_timespec_to_sec(struct timespec t);
 
 /**
  * @brief Calculate image stride from framesize and alignment value.

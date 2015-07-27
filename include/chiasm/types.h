@@ -127,6 +127,7 @@ struct ch_device {
 
     struct timeval timeout;        /**< Timeout on select to get new image. */
     bool stream;                   /**< Is the device currently streaming? */
+    double fps;                    /**< Current framerate of the device. */
 
     pthread_t thread;              /**< Thread ID for asynchronous streaming. */
 

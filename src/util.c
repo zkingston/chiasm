@@ -59,6 +59,28 @@ ch_sec_to_timeval(double seconds)
     return (ret);
 }
 
+inline double
+ch_timeval_to_sec(struct timeval t)
+{
+    return ((double) t.tv_sec + (double) t.tv_usec / 1000000);
+}
+
+inline struct timespec
+ch_sec_to_timespec(double seconds)
+{
+    struct timespec ret;
+    ret.tv_sec = (time_t) seconds;
+    ret.tv_nsec = (long) ((seconds - (double) ret.tv_sec) * 1e9);
+
+    return (ret);
+}
+
+inline double
+ch_timespec_to_sec(struct timespec t)
+{
+    return ((double) t.tv_sec + (double) t.tv_nsec / 1e9);
+}
+
 inline void
 ch_calc_stride(struct ch_device *device, uint32_t alignment)
 {

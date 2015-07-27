@@ -31,7 +31,7 @@ CH_DL_INIT(struct ch_device *device)
     tag_detector->nthreads = 64;
     tag_detector->debug = 0;
 
-    tag_detector->refine_edges = 1;
+    tag_detector->refine_edges = 0;
     tag_detector->refine_decode = 0;
     tag_detector->refine_pose = 0;
 
@@ -55,7 +55,12 @@ CH_DL_CALL(struct ch_device *device)
         apriltag_detection_t *det;
         zarray_get(detections, i, &det);
 
-        fprintf(stderr, "Tag id %3d detected.\n", det->id);
+        size_t x;
+        for (x = 0; x < 4; x++)
+            image_u8_draw_line(&image,
+                               det->p[x][0], det->p[x][1],
+                               det->p[(x + 1) % 4][0], det->p[(x + 1) % 4][1],
+                               255, 3);
     }
 
     apriltag_detections_destroy(detections);

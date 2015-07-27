@@ -217,6 +217,7 @@ ch_init_device(struct ch_device *device)
     device->timeout = ch_sec_to_timeval(CH_DEFAULT_TIMEOUT);
     device->stream = false;
     device->thread = 0;
+    device->fps = 0.0;
 
     ch_calc_stride(device, CH_DEFAULT_ALIGN);
 
@@ -951,11 +952,24 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
     if (ch_start_stream(device) == -1)
         return (-1);
 
+    struct timespec ts;
+    double pt = -1;
+
     int r = 0;
 
     // Iterate for number of frames requested.
     size_t n;
     for (n = 0; ((n_frames != 0) ? n < n_frames : 1) && device->stream; n++) {
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        double t = ch_timespec_to_sec(ts);
+
+        if (pt > 0)
+            device->fps = (1.0 - CH_FPS_UPDATE) * device->fps
+                + CH_FPS_UPDATE * (1.0 / (t - pt));
+        pt = t;
+
+        fprintf(stderr, "%f\n", device->fps);
+
         // Wait on select for a new frame.
         fd_set fds;
         FD_ZERO(&fds);
