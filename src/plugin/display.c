@@ -3,6 +3,7 @@
 #include <pthread.h>
 
 #include <gtk/gtk.h>
+#include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 
 #include <chiasm.h>
@@ -21,43 +22,6 @@ timer_callback(GtkWidget *widget)
     return (TRUE);
 }
 
-static int
-convert_image(struct ch_device *device, struct ch_frmbuf *out) {
-    size_t x;
-    for (x = 0; x < device->framesize.width; x++) {
-        size_t y;
-        for (y = 0; y < device->framesize.height; y++) {
-            uint8_t *buf;
-            uint8_t r, g, b;
-            switch (device->decode_cx.out_pixfmt) {
-            case AV_PIX_FMT_RGB24:
-                buf = &device->out_buffer.start[3 * device->out_stride * y];
-
-                r = buf[x * 3 + 0];
-                g = buf[x * 3 + 1];
-                b = buf[x * 3 + 2];
-                break;
-
-            case AV_PIX_FMT_GRAY8:
-                buf = &device->out_buffer.start[device->out_stride * y];
-                r = g = b = buf[x];
-                break;
-
-            default:
-                ch_error("Invalid image type for display.");
-                return (-1);
-            }
-
-            uint8_t *out_buf = &out->start[4 * device->framesize.width * y];
-            out_buf[x * 4 + 2] = r;
-            out_buf[x * 4 + 1] = g;
-            out_buf[x * 4 + 0] = b;
-        }
-    }
-
-    return (0);
-}
-
 /**
  * @brief Callback function for expose events. Draws the new image.
  */
@@ -71,9 +35,6 @@ on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer data)
 
     if (!device->stream)
 	return (FALSE);
-
-    if (convert_image(device, &outbuf) == -1)
-        return (FALSE);
 
     int stride = cairo_format_stride_for_width(CAIRO_FORMAT_RGB24,
                                                device->framesize.width);
@@ -160,8 +121,7 @@ int
 CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 {
     // Setup requested output format.
-    cx->out_pixfmt = AV_PIX_FMT_RGB24;
-    cx->out_stride = 0;
+    cx->out_pixfmt = AV_PIX_FMT_BGRA;
 
     // Create display thread.
     int r;
@@ -174,10 +134,15 @@ CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 }
 
 int
-CH_DL_QUIT(struct ch_device *device)
+CH_DL_CALL(struct ch_frmbuf *in_buf)
 {
-    device = (struct ch_device *) device;
+    memcpy(outbuf.start, in_buf->start, outbuf.length);
+    return (0);
+}
 
+int
+CH_DL_QUIT(void)
+{
     // Close display thread and join.
     gtk_main_quit();
 

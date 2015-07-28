@@ -20,7 +20,7 @@ LIBOBJS = $(patsubst %.c, %.o, $(LIBSRCS))
 LIBRARY = libchiasm.a
 
 # Output programs and plugins.
-OBJS = stream control output.so # display.so apriltag.so
+OBJS = stream control output.so display.so # apriltag.so
 
 .PHONY: all
 all: $(LIBRARY) $(OBJS)

@@ -126,8 +126,6 @@ main(int argc, char *argv[])
 		CH_HELP_G
 		CH_HELP_B
 		CH_HELP_T
-		CH_HELP_P
-                CH_HELP_S
 		" -i   Filename of chiasm plugin to load. Required.\n"
                 " -l   List formats, resolutions, framerates and exit.\n"
                 " -?,h Show this help.\n",
