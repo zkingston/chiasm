@@ -19,14 +19,6 @@ extern "C" {
 int ch_parse_device_opt(int opt, char *optarg, struct ch_device *device);
 
 /**
- * @brief Calculate image stride from framesize and alignment value.
- *
- * @param device Device to calculate stride for.
- * @param alignment Start-byte alignment value.
- */
-void ch_calc_stride(struct ch_device *device, uint32_t alignment);
-
-/**
  * @brief Initialize a struct ch_device.
  *
  * @param device The struct to fill.
@@ -162,14 +154,6 @@ int ch_set_ctrl(struct ch_device *device, struct ch_ctrl *ctrl, int32_t value);
 int ch_set_fmt(struct ch_device *device);
 
 /**
- * @brief Initialize stream buffers.
- *
- * @param device Device to initialize.
- * @return 0 on success, -1 on failure.
- */
-int ch_init_stream(struct ch_device *device);
-
-/**
  * @brief Begin streaming from device.
  *
  * @param device Device to begin streaming from.
@@ -189,12 +173,11 @@ int ch_stop_stream(struct ch_device *device);
  * @brief Stream video and call a callback upon every new frame.
  *
  * @param device Device to stream from.
- * @param num_frames Number of frames to stream. 0 for unlimited.
- * @param callback Function to callback on each new frame.
+ * @param plugins Array of plugins to use for callbacks.
+ * @param n_plugins Number of plugins in the array.
  * @return 0 on success, -1 on failure.
  */
-int ch_stream(struct ch_device *device, uint32_t num_frames,
-              int (*callback)(struct ch_device *device));
+int ch_stream(struct ch_device *device, struct ch_dl **plugins, uint32_t n_plugins);
 
 #ifdef __cplusplus
 }

@@ -21,22 +21,71 @@ ch_dl_load(const char *name)
     }
 
     // Load all functions. None are required.
-    plugin->init =
-	(int (*)(struct ch_device *)) dlsym(plugin->so, CH_STR(CH_DL_INIT));
+    plugin->init = (int (*)(struct ch_device *, struct ch_dl_cx *))
+        dlsym(plugin->so, CH_STR(CH_DL_INIT));
 
     plugin->callback =
-	(int (*)(struct ch_device *)) dlsym(plugin->so, CH_STR(CH_DL_CALL));
+	(int (*)(struct ch_frmbuf *)) dlsym(plugin->so, CH_STR(CH_DL_CALL));
 
     plugin->quit =
-	(int (*)(struct ch_device *)) dlsym(plugin->so, CH_STR(CH_DL_QUIT));
+	(int (*)(void)) dlsym(plugin->so, CH_STR(CH_DL_QUIT));
+
+    // Initialize plugin context.
+    plugin->cx.out_buffer.start = NULL;
+    plugin->cx.out_buffer.length = 0;
+    plugin->cx.out_pixfmt = CH_DEFAULT_OUTFMT;
+    plugin->cx.out_stride = 0;
+    plugin->cx.sws_cx = NULL;
+    plugin->cx.frame_out = NULL;
 
     return (plugin);
 }
-
 
 void
 ch_dl_close(struct ch_dl *plugin)
 {
     dlclose(plugin->so);
     free(plugin);
+}
+
+int
+ch_init_plugins(struct ch_device *device, struct ch_dl *plugins[], size_t n_plugins)
+{
+    size_t idx;
+    for (idx = 0; idx < n_plugins; idx++) {
+        if (plugins[idx]->init(device, &plugins[idx]->cx) == -1) {
+            ch_error("Failed to initialize plugin.");
+            ch_quit_plugins(plugins, idx);
+            return (-1);
+        }
+
+        // Initialize output context for plugin.
+        ch_init_plugin_out(device, &plugins[idx]->cx);
+    }
+
+    return (0);
+}
+
+int
+ch_call_plugins(struct ch_device *device, struct ch_decode_cx *decode,
+                struct ch_dl *plugins[], size_t n_plugins)
+{
+    size_t idx;
+    for (idx = 0; idx < n_plugins; idx++) {
+        ch_output(device, decode, &plugins[idx]->cx);
+        plugins[idx]->callback(&plugins[idx]->cx.out_buffer);
+    }
+
+    return (0);
+}
+
+int
+ch_quit_plugins(struct ch_dl *plugins[], size_t n_plugins)
+{
+    size_t idx;
+    for (idx = 0; idx < n_plugins; idx++)
+        if (plugins[idx]->quit() == -1)
+            ch_error("Failed to close plugin.");
+
+    return (0);
 }

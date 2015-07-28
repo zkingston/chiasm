@@ -157,8 +157,12 @@ setup_gui(void *arg)
 }
 
 int
-CH_DL_INIT(struct ch_device *device)
+CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 {
+    // Setup requested output format.
+    cx->out_pixfmt = AV_PIX_FMT_RGB24;
+    cx->out_stride = 0;
+
     // Create display thread.
     int r;
     if ((r = pthread_create(&gui_thread, NULL, setup_gui, device)) != 0) {

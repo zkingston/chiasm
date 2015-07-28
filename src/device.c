@@ -108,27 +108,7 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
             return (-1);
         }
 
-        ch_calc_stride(device, CH_DEFAULT_ALIGN);
         break;
-
-    case 'p':
-	if (ch_set_out_pixfmt(device, optarg) == -1)  {
-	    fprintf(stderr, "Invalid output pixel format.\n");
-	    return (-1);
-	}
-	break;
-
-    case 's': {
-        uint32_t r;
-        if (ch_parse_uint32(optarg, &r) == -1) {
-            fprintf(stderr, "Invalid alignment value.\n");
-            return (-1);
-        }
-
-        ch_calc_stride(device, r);
-        break;
-    }
-
 
     default:
         fprintf(stderr, "Invalid option for device parse.\n");
@@ -136,17 +116,6 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
     }
 
     return (0);
-}
-
-inline void
-ch_calc_stride(struct ch_device *device, uint32_t alignment)
-{
-    uint32_t stride = device->framesize.width;
-
-    if ((stride % alignment) != 0)
-        stride += alignment - (stride % alignment);
-
-    device->out_stride = stride;
 }
 
 /**
@@ -224,57 +193,22 @@ ch_validate_device(struct ch_device *device)
     return (0);
 }
 
-/**
- * @brief Unmaps memory-mapped streaming buffers.
- *
- * @param device Device to unmap from.
- * @return 0 on success, -1 on failure.
- */
-static int
-ch_unmap_buffers(struct ch_device *device)
-{
-    size_t idx;
-    for (idx = 0; idx < device->num_buffers; idx++) {
-        // Only unmap mapped buffers.
-        if (device->in_buffers[idx].start == NULL)
-            continue;
-
-        if (munmap(device->in_buffers[idx].start,
-                    device->in_buffers[idx].length) == -1) {
-            ch_error_no("Failed to munmap buffer.", errno);
-
-            return (-1);
-        }
-    }
-
-    return (0);
-}
-
 void
 ch_init_device(struct ch_device *device)
 {
     device->name = CH_DEFAULT_DEVICE;
     device->fd = 0;
+    pthread_mutex_init(&device->mutex, NULL);
 
     device->in_buffers = NULL;
     device->num_buffers = CH_DEFAULT_BUFNUM;
 
-    device->in_buffer = NULL;
-    device->out_buffer.start = NULL;
-    device->out_buffer.length = 0;
-
-    pthread_mutex_init(&device->out_mutex, NULL);
-
     device->framesize = (struct ch_rect) {CH_DEFAULT_WIDTH, CH_DEFAULT_HEIGHT};
     device->in_pixfmt = ch_string_to_pixfmt(CH_DEFAULT_FORMAT);
+
     device->timeout = ch_sec_to_timeval(CH_DEFAULT_TIMEOUT);
     device->stream = false;
-    device->thread = 0;
     device->fps = 0.0;
-
-    ch_calc_stride(device, CH_DEFAULT_ALIGN);
-
-    ch_set_out_pixfmt(device, "RGB24");
 }
 
 int
@@ -785,8 +719,40 @@ ch_set_fmt(struct ch_device *device)
     return (0);
 }
 
-int
-ch_init_stream(struct ch_device *device)
+/**
+ * @brief Unmaps memory-mapped streaming buffers.
+ *
+ * @param device Device to unmap from.
+ * @return 0 on success, -1 on failure.
+ */
+static int
+ch_unmap_buffers(struct ch_device *device)
+{
+    size_t idx;
+    for (idx = 0; idx < device->num_buffers; idx++) {
+        // Only unmap mapped buffers.
+        if (device->in_buffers[idx].start == NULL)
+            continue;
+
+        if (munmap(device->in_buffers[idx].start,
+                    device->in_buffers[idx].length) == -1) {
+            ch_error_no("Failed to munmap buffer.", errno);
+
+            return (-1);
+        }
+    }
+
+    return (0);
+}
+
+/**
+ * @brief Maps memory-mapped streaming buffers for a device.
+ *
+ * @param device Device to map buffers for.
+ * @return 0 on succes, -1 on failure.
+ */
+static int
+ch_map_buffers(struct ch_device *device)
 {
     struct v4l2_requestbuffers req;
     CH_CLEAR(&req);
@@ -855,10 +821,8 @@ error:
 int
 ch_start_stream(struct ch_device *device)
 {
-    // Allocate and map input buffers.
-    if (device->in_buffers == NULL)
-        if (ch_init_stream(device) == -1)
-            return (-1);
+    if (ch_map_buffers(device) == -1)
+        return (-1);
 
     // Query each buffer to be filled.
     size_t idx;
@@ -872,7 +836,7 @@ ch_start_stream(struct ch_device *device)
 
         if (ch_ioctl(device, VIDIOC_QBUF, &buf) == -1) {
             ch_error("Failed to request buffer.");
-            return (-1);
+            goto error;
         }
     }
 
@@ -881,23 +845,21 @@ ch_start_stream(struct ch_device *device)
 
     if (ch_ioctl(device, VIDIOC_STREAMON, &type) == -1) {
         ch_error("Failed to start stream.");
-        return (-1);
+        goto error;
     }
-
-    // Initialize decoding context.
-    if (ch_init_decode_cx(device) == -1)
-	return (-1);
 
     device->stream = true;
     return (0);
+
+error:
+    ch_unmap_buffers(device);
+    return (-1);
 }
 
 int
 ch_stop_stream(struct ch_device *device)
 {
-    // If device is not streaming, do nothing.
-    if (!device->stream)
-        return (0);
+    device->stream = false;
 
     // Send command to device to stop stream.
     if (device->fd > 0) {
@@ -910,7 +872,7 @@ ch_stop_stream(struct ch_device *device)
     }
 
     // Obtain lock on stream buffers.
-    pthread_mutex_lock(&device->out_mutex);
+    pthread_mutex_lock(&device->mutex);
 
     // Destroy input buffers.
     if (device->in_buffers)
@@ -919,100 +881,34 @@ ch_stop_stream(struct ch_device *device)
     free(device->in_buffers);
     device->in_buffers = NULL;
 
-    ch_destroy_decode_cx(device);
-    device->stream = false;
-
-    pthread_mutex_unlock(&device->out_mutex);
-
-    return (0);
-}
-
-static void *
-ch_stream_async_func(void *_args)
-{
-    struct ch_stream_args args = *((struct ch_stream_args *) _args);
-    free(_args);
-
-    int *r = ch_calloc(1, sizeof(int));
-    *r = ch_stream(args.device, args.n_frames, args.callback);
-
-    // De-init thread.
-    args.device->thread = 0;
-
-    pthread_exit(r);
-}
-
-int
-ch_stream_async(struct ch_device *device, uint32_t n_frames,
-        int (*callback)(struct ch_device *device))
-{
-    struct ch_stream_args *args;
-    args = ch_calloc(1, sizeof(struct ch_stream_args));
-    if (args == NULL)
-        return (-1);
-
-    args->device = device;
-    args->n_frames = n_frames;
-    args->callback = callback;
-
-    int r = pthread_create(&device->thread, NULL, ch_stream_async_func, args);
-    if (r != 0) {
-        ch_error_no("Failed to create stream thread.", r);
-        return (-1);
-    }
+    pthread_mutex_unlock(&device->mutex);
 
     return (0);
 }
 
 int
-ch_stream_async_join(struct ch_device *device)
-{
-    int r = 0;
-    int *rp = NULL;
-
-    if (device->thread) {
-        if ((r = ch_stop_stream(device)) == -1)
-            goto exit;
-
-        if (pthread_join(device->thread, (void **) &rp) != 0) {
-            ch_error_no("Failed to join stream thread.", r);
-            r = -1;
-            goto exit;
-        }
-
-        if ((r = *rp) == -1) {
-            ch_error("Error in stream thread on close.");
-            goto exit;
-        }
-    }
-
-exit:
-    if (rp)
-        free(rp);
-
-    return (r);
-}
-
-int
-ch_stream(struct ch_device *device, uint32_t n_frames,
-        int (*callback)(struct ch_device *device))
+ch_stream(struct ch_device *device, struct ch_dl **plugins, uint32_t n_plugins)
 {
     if (device->stream) {
         ch_error("Device is already streaming.");
         return (-1);
     }
 
+    if (ch_init_plugins(device, plugins, n_plugins) == -1)
+        return (-1);
+
     if (ch_start_stream(device) == -1)
         return (-1);
+
+    struct ch_decode_cx decode;
+    ch_init_decode_cx(device, &decode);
 
     struct timespec ts;
     double pt = -1;
 
     int r = 0;
-
-    // Iterate for number of frames requested.
-    size_t n;
-    for (n = 0; ((n_frames != 0) ? n < n_frames : 1) && device->stream; n++) {
+    while (device->stream) {
+        // Update FPS
         clock_gettime(CLOCK_MONOTONIC, &ts);
         double t = ch_timespec_to_sec(ts);
 
@@ -1063,33 +959,31 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
             break;
         }
 
-	// Set the current input buffer.
-	device->in_buffer = &device->in_buffers[buf.index];
-	device->in_buffer->length = buf.bytesused;
+        // Set current size of input buffer.
+	device->in_buffers[buf.index].length = buf.bytesused;
 
         // Obtain lock on stream buffers.
-        pthread_mutex_lock(&device->out_mutex);
+        pthread_mutex_lock(&device->mutex);
 
         // Verify we are still streaming after obtaining the lock.
         if (!device->stream) {
-            pthread_mutex_unlock(&device->out_mutex);
+            pthread_mutex_unlock(&device->mutex);
             break;
         }
 
-	// Decode the input video stream to a simple RGB24 image.
-        if (ch_decode(device) == -1) {
-            pthread_mutex_unlock(&device->out_mutex);
+        int f = ch_decode(device, &device->in_buffers[buf.index], &decode);
+        if ((r = f) == -1) {
+            pthread_mutex_unlock(&device->mutex);
             break;
         }
 
-        // Callback.
-        if ((r = callback(device)) == -1) {
-            pthread_mutex_unlock(&device->out_mutex);
+        if ((r = ch_call_plugins(device, &decode, plugins, n_plugins)) == -1) {
+            pthread_mutex_unlock(&device->mutex);
             break;
         }
 
         // Unlock stream buffers.
-        pthread_mutex_unlock(&device->out_mutex);
+        pthread_mutex_unlock(&device->mutex);
 
         // Queue buffer.
         if ((r = ch_ioctl(device, VIDIOC_QBUF, &buf)) == -1) {
@@ -1098,6 +992,9 @@ ch_stream(struct ch_device *device, uint32_t n_frames,
         }
     }
 
+    ch_destroy_decode_cx(&decode);
+    ch_quit_plugins(plugins, n_plugins);
     ch_stop_stream(device);
+
     return (r);
 }

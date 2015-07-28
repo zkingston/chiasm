@@ -30,24 +30,6 @@ signal_handler(int signal)
 }
 
 /**
- * @brief Callback function on new frame. Writes frame out to stdout.
- *
- * @param frm New image frame from camera.
- * @return Always 0.
- */
-static int
-stream_callback(struct ch_device *device)
-{
-    size_t idx;
-    for (idx = 0; idx < plugin_max; idx++)
-	if (plugins[idx]->callback)
-	    if (plugins[idx]->callback(device) == -1)
-		return (-1);
-
-    return (0);
-}
-
-/**
  * @brief List the available formats and their resolutions for a device.
  *
  * @param device Device to list formats for.
@@ -102,7 +84,6 @@ list_formats(struct ch_device *device)
 int
 main(int argc, char *argv[])
 {
-    size_t n_frames = CH_DEFAULT_NUMFRAMES;
     bool list = false;
 
     ch_init_device(&device);
@@ -124,15 +105,6 @@ main(int argc, char *argv[])
 
         case 'l':
             list = true;
-            break;
-
-        case 'n':
-            n_frames = strtoul(optarg, NULL, 10);
-            if (errno == EINVAL || errno == ERANGE) {
-                fprintf(stderr, "Invalid number of frames %s.\n", optarg);
-                return (-1);
-            }
-
             break;
 
 	case 'i':
@@ -157,11 +129,9 @@ main(int argc, char *argv[])
 		CH_HELP_P
                 CH_HELP_S
 		" -i   Filename of chiasm plugin to load. Required.\n"
-                " -n   Number of frames to read. 0 = Infinite. %d by default.\n"
                 " -l   List formats, resolutions, framerates and exit.\n"
                 " -?,h Show this help.\n",
-                argv[0],
-                CH_DEFAULT_NUMFRAMES
+                argv[0]
             );
 
             return (0);
@@ -176,10 +146,7 @@ main(int argc, char *argv[])
 
     // Initialize early for cleanup control flow.
     int r = 0;
-    size_t idx = 0;
-    size_t jdx = 0;
-
-    if ((r = ch_open_device(&device)) == -1)
+   if ((r = ch_open_device(&device)) == -1)
         goto cleanup;
 
     if (list) {
@@ -190,21 +157,9 @@ main(int argc, char *argv[])
     if ((r = ch_set_fmt(&device)) == -1)
         goto cleanup;
 
-    for (; idx < plugin_max; idx++)
-	if (plugins[idx]->init)
-	    if ((r = plugins[idx]->init(&device)) == -1)
-		goto cleanup;
-
-    r = ch_stream(&device, n_frames, stream_callback);
+    r = ch_stream(&device, plugins, plugin_max);
 
 cleanup:
-    for (; jdx < idx; jdx++) {
-	if (plugins[jdx]->quit)
-	    plugins[jdx]->quit(&device);
-
-	ch_dl_close(plugins[jdx]);
-    }
-
     ch_close_device(&device);
 
     return (r);

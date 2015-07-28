@@ -15,65 +15,90 @@
 
 bool ch_codec_registered = false;
 
-int
-ch_set_out_pixfmt(struct ch_device *device, char *fmt)
+inline uint32_t
+ch_calc_stride(struct ch_dl_cx *cx, uint32_t width, uint32_t alignment)
 {
-    struct ch_decode_cx *cx = &device->decode_cx;
+    uint32_t b_per_pix = avpicture_get_size(cx->out_pixfmt, 1, 1);
+    uint32_t stride = width * b_per_pix;
 
-    if (strcmp(fmt, "GRAY8") == 0)
-	cx->out_pixfmt = AV_PIX_FMT_GRAY8;
-    else if (strcmp(fmt, "RGB24") == 0)
-	cx->out_pixfmt = AV_PIX_FMT_RGB24;
-    else
-	return (-1);
+    if ((stride % alignment) != 0)
+        stride += alignment - (stride % alignment);
 
-    return (0);
+    return (stride);
 }
 
 int
-ch_init_decode_cx(struct ch_device *device)
+ch_init_plugin_out(struct ch_device *device, struct ch_dl_cx *cx)
 {
-    struct ch_decode_cx *cx = &device->decode_cx;
+    uint32_t b_per_pix = avpicture_get_size(cx->out_pixfmt, 1, 1);
 
+    // If the output stride was uninitialized by the plugin, use the width.
+    if (cx->out_stride == 0)
+        cx->out_stride = device->framesize.width * b_per_pix;
+
+    // Get size needed for output buffer.
+    cx->out_buffer.length = cx->out_stride * device->framesize.height;
+
+    // Allocate output buffer.
+    cx->out_buffer.start = ch_calloc(1, cx->out_buffer.length);
+    if (cx->out_buffer.start == NULL)
+	goto clean;
+
+    cx->frame_out = av_frame_alloc();
+    if (cx->frame_out == NULL)
+        goto clean;
+
+    int r = avpicture_fill((AVPicture *) cx->frame_out, cx->out_buffer.start,
+                   cx->out_pixfmt, cx->out_stride / b_per_pix,
+                   device->framesize.height);
+
+    if (r < 0) {
+        ch_error("Failed to setup output frame fields.");
+        goto clean;
+    }
+
+    return (0);
+
+clean:
+    ch_destroy_plugin_out(cx);
+    return (-1);
+}
+
+void
+ch_destroy_plugin_out(struct ch_dl_cx *cx)
+{
+    if (cx->out_buffer.start)
+        free(cx->out_buffer.start);
+
+    if (cx->frame_out)
+        av_frame_free(&cx->frame_out);
+
+    if (cx->sws_cx)
+        sws_freeContext(cx->sws_cx);
+}
+
+int
+ch_init_decode_cx(struct ch_device *device, struct ch_decode_cx *cx)
+{
     // Register codecs so they can be found.
     if (!ch_codec_registered) {
 	av_register_all();
 	ch_codec_registered = true;
     }
 
-    // Get size needed for output buffer.
-    device->out_buffer.length = avpicture_get_size(cx->out_pixfmt,
-						   device->framesize.width,
-                                                   device->out_stride);
-
-    // Allocate output buffer.
-    device->out_buffer.start = ch_calloc(1, device->out_buffer.length);
-    if (device->out_buffer.start == NULL)
-	goto clean;
+    cx->codec_cx = NULL;
+    cx->frame_in = NULL;
 
     // Setup I/O frames.
     cx->frame_in = av_frame_alloc();
-    cx->frame_out = av_frame_alloc();
-
-    if (cx->frame_in == NULL || cx->frame_out == NULL) {
-	ch_error("Failed to allocate frames.");
-	goto clean;
-    }
-
-    if (avpicture_fill((AVPicture *) cx->frame_out,
-		       device->out_buffer.start, cx->out_pixfmt,
-		       device->out_stride, device->framesize.height) < 0) {
-	ch_error("Failed to setup output frame fields.");
-	goto clean;
-    };
+    if (cx->frame_in == NULL)
+        goto clean;
 
     enum AVCodecID codec_id = AV_CODEC_ID_NONE;
-    cx->compressed = true;
 
     // Find codec ID based on input pixel format.
     switch (device->in_pixfmt) {
     case V4L2_PIX_FMT_YUYV:
-	cx->compressed = false;
 	return (0);
 
     case V4L2_PIX_FMT_MJPEG:
@@ -114,60 +139,51 @@ ch_init_decode_cx(struct ch_device *device)
 	goto clean;
     }
 
+
     return (0);
 
 clean:
-    ch_destroy_decode_cx(device);
+    ch_destroy_decode_cx(cx);
     return (-1);
 }
 
 void
-ch_destroy_decode_cx(struct ch_device *device)
+ch_destroy_decode_cx(struct ch_decode_cx *cx)
 {
-    struct ch_decode_cx *cx = &device->decode_cx;
-
-    device->out_buffer.length = 0;
-    if (device->out_buffer.start != NULL)
-	free(device->out_buffer.start);
-
-    av_frame_free(&cx->frame_in);
-    av_frame_free(&cx->frame_out);
+    if (cx->frame_in)
+        av_frame_free(&cx->frame_in);
 
     if (cx->codec_cx != NULL) {
         avcodec_close(cx->codec_cx);
         av_free(cx->codec_cx);
     }
-
-    if (cx->sws_cx != NULL)
-	sws_freeContext(cx->sws_cx);
 }
 
 int
-ch_decode(struct ch_device *device)
+ch_decode(struct ch_device *device, struct ch_frmbuf *in_buf,
+          struct ch_decode_cx *cx)
 {
-    struct ch_decode_cx *cx = &device->decode_cx;
-
-    enum AVPixelFormat in_pixfmt = AV_PIX_FMT_NONE;
     int finish = 0;
 
-    if (!cx->compressed) {
+    // Uncompressed stream.
+    if (device->in_pixfmt == V4L2_PIX_FMT_YUYV) {
 	if (avpicture_fill((AVPicture *) cx->frame_in,
-			   device->in_buffer->start, AV_PIX_FMT_YUYV422,
+			   in_buf->start, AV_PIX_FMT_YUYV422,
 			   device->framesize.width, device->framesize.height) < 0) {
 	    ch_error("Failed to setup output frame fields.");
 	    return (-1);
 	}
 
 	finish = 1;
-	in_pixfmt = AV_PIX_FMT_YUYV422;
+	cx->in_pixfmt = AV_PIX_FMT_YUYV422;
 
     } else {
 	// Initialize packet to use input buffer.
 	AVPacket packet;
 	av_init_packet(&packet);
 
-	packet.data = device->in_buffer->start;
-	packet.size = device->in_buffer->length;
+	packet.data = in_buf->start;
+	packet.size = in_buf->length;
 
 	if (avcodec_decode_video2(cx->codec_cx, cx->frame_in,
 				  &finish, &packet) < 0) {
@@ -177,43 +193,45 @@ ch_decode(struct ch_device *device)
 	}
 
 	av_free_packet(&packet);
-	in_pixfmt = cx->codec_cx->pix_fmt;
+	cx->in_pixfmt = cx->codec_cx->pix_fmt;
     }
 
-    // Convert to output image format.
-    if (finish) {
-	// Allocate the SWS context if we have not already.
-	if (cx->sws_cx == NULL) {
-	    cx->sws_cx = sws_getContext(
-		device->framesize.width,
-		device->framesize.height,
-		in_pixfmt,
-		device->framesize.width,
-		device->framesize.height,
-		cx->out_pixfmt,
-		SWS_BILINEAR,
-		NULL,
-		NULL,
-		NULL
-	    );
+    return (finish);
+}
 
-	    if (cx->sws_cx == NULL) {
-		ch_error("Failed to initialize SWS context.");
-		return (-1);
-	    }
-	}
-
-	// Convert the image into a RGB24 array.
-	sws_scale(
-	    cx->sws_cx,
-	    (uint8_t const * const *) cx->frame_in->data,
-	    cx->frame_in->linesize,
-	    0,
-	    device->framesize.height,
-	    cx->frame_out->data,
-	    cx->frame_out->linesize
+int
+ch_output(struct ch_device *device, struct ch_decode_cx *decode,
+          struct ch_dl_cx *cx)
+{
+    if (cx->sws_cx == NULL) {
+        cx->sws_cx = sws_getContext(
+            device->framesize.width,
+            device->framesize.height,
+            decode->in_pixfmt,
+            device->framesize.width,
+            device->framesize.height,
+            cx->out_pixfmt,
+            SWS_BILINEAR,
+            NULL,
+            NULL,
+            NULL
 	);
+
+        if (cx->sws_cx == NULL) {
+            ch_error("Failed to initialize SWS context.");
+            return (-1);
+        }
     }
+
+    sws_scale(
+        cx->sws_cx,
+        (uint8_t const * const *) decode->frame_in->data,
+        decode->frame_in->linesize,
+        0,
+        device->framesize.height,
+        cx->frame_out->data,
+        cx->frame_out->linesize
+    );
 
     return (0);
 }

@@ -23,8 +23,7 @@ extern "C" {
 #define CH_DEFAULT_BUFNUM    5
 #define CH_DEFAULT_TIMEOUT   2.0
 #define CH_DEFAULT_NUMFRAMES 0
-#define CH_DEFAULT_OUTFMT    "RGB24"
-#define CH_DEFAULT_ALIGN     1
+#define CH_DEFAULT_OUTFMT    AV_PIX_FMT_RGB24
 
 #define CH_FPS_UPDATE        0.3
 
@@ -42,12 +41,6 @@ extern "C" {
 
 #define CH_HELP_T \
     " -t   Timeout in seconds. " CH_STR(CH_DEFAULT_TIMEOUT) " by default.\n"
-
-#define CH_HELP_P \
-    " -p   Output image format code. " CH_STR(CH_DEFAULT_OUTFMT) " by default.\n"
-
-#define CH_HELP_S \
-    " -s   Image output line start-byte alignment. " CH_STR(CH_DEFAULT_ALIGN) " by default.\n"
 
 #define CH_CLEAR(x) (memset((x) , 0, sizeof(*(x))))
 

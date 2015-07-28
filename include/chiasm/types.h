@@ -93,64 +93,56 @@ struct ch_frmbuf {
 };
 
 /**
- * @brief Decoding context to use in frame decoding for compressed streams.
- */
-struct ch_decode_cx {
-    AVCodecContext    *codec_cx;   /**< libavcodec codec context. */
-    AVFrame           *frame_in;   /**< Allocated input frame. */
-    AVFrame           *frame_out;  /**< Allocated output frame. */
-    struct SwsContext *sws_cx;     /**< SWS context. */
-    bool               compressed; /**< Is this a compressed stream? */
-    uint32_t           out_pixfmt; /**< Format of outgoing pixels from stream.
-				        AV pixelformat. */
-};
-
-/**
  * @brief A description of a video device and all associated context.
  */
 struct ch_device {
-    char *name;                    /**< Filename of the device. */
-    int   fd;                      /**< File-descriptor of the device. */
+    char             *name;       /**< Filename of the device. */
+    int              fd;          /**< File-descriptor of the device. */
+    pthread_mutex_t  mutex;
 
-    struct ch_frmbuf *in_buffers;  /**< Array of memory-mapped input buffers. */
-    uint32_t          num_buffers; /**< Number of input buffers. */
+    struct ch_frmbuf *in_buffers; /**< Array of memory-mapped input buffers. */
+    uint32_t         num_buffers; /**< Number of input buffers. */
 
-    struct ch_frmbuf *in_buffer;   /**< The current input buffer. */
-
-    struct ch_frmbuf out_buffer;   /**< Output buffer. Contains RGB24 image. */
-    pthread_mutex_t  out_mutex;    /**< Mutex to lock device buffers. */
-    uint32_t         out_stride;   /**< Stride of each row of the out buffer. */
-
-    struct ch_rect   framesize;    /**< Size of frames in image stream. */
-    uint32_t         in_pixfmt;    /**< Format of incoming pixels from stream.
+    struct ch_rect   framesize;   /**< Size of frames in image stream. */
+    uint32_t         in_pixfmt;   /**< Format of incoming pixels from stream.
 				        V4L pixelformat. */
 
-    struct timeval timeout;        /**< Timeout on select to get new image. */
-    bool stream;                   /**< Is the device currently streaming? */
-    double fps;                    /**< Current framerate of the device. */
-
-    pthread_t thread;              /**< Thread ID for asynchronous streaming. */
-
-    struct ch_decode_cx decode_cx; /**< Decoding context for compressed video. */
+    struct timeval   timeout;     /**< Timeout on select to get new image. */
+    bool             stream;      /**< Is the device currently streaming? */
+    double           fps;         /**< Current framerate of the device. */
 };
 
 /**
- * @brief Argument for thread in asynchronous streaming.
+ * @brief Decoding context for compressed image decoding.
  */
-struct ch_stream_args {
-    struct ch_device *device;                  /**< Device to use. */
-    uint32_t n_frames;                         /**< Number of frames. */
-    int (*callback)(struct ch_device *device); /**< Callback function. */
+struct ch_decode_cx {
+    AVCodecContext *codec_cx;   /**< libavcodec codec context. */
+    AVFrame        *frame_in;   /**< Allocated input frame. */
+    uint32_t        in_pixfmt;  /**< Decoded output pixel format. */
+};
+
+/**
+ * @brief Plugin output image format context.
+ */
+struct ch_dl_cx {
+    struct ch_frmbuf  out_buffer; /**< Output buffer containing image. */
+    uint32_t          out_pixfmt; /**< Output pixel format. AV pixelformat. */
+    uint32_t          out_stride; /**< Stride of the output image. */
+    struct SwsContext *sws_cx;    /**< SWS context for decoding. */
+    AVFrame           *frame_out; /**< Allocated output frame. */
 };
 
 /**
  * @brief Plugin description that has been dynamically loaded.
  */
 struct ch_dl {
-    void *so;                                  /**< Shared object from dlopen. */
-    int (*init)(struct ch_device *device);     /**< Initializer function. */
-    int (*callback)(struct ch_device *device); /**< Frame callback function. */
-    int (*quit)(struct ch_device *device);     /**< Destroyer function. */
+    char *name;                          /**< Name of plugin. */
+    void *so;                            /**< Shared object from dlopen. */
+    int (*init)(struct ch_device *,
+                struct ch_dl_cx *);      /**< Initializer function. */
+    int (*callback)(struct ch_frmbuf *); /**< Frame callback function. */
+    int (*quit)(void);                   /**< Destroyer function. */
+    struct ch_dl_cx cx;                  /**< Decoding context for plugin. */
 };
 
 #ifdef __cplusplus
