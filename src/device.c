@@ -16,6 +16,52 @@
 
 #include <chiasm.h>
 
+/**
+ * @brief Parse a double from a string.
+ *
+ * @param optarg String to parse.
+ * @param value Pointer to variable to fill.
+ * @return 0 on success, -1 on failure.
+ */
+static int
+ch_parse_double(char *optarg, double *value)
+{
+    char *ptr;
+    double r = strtod(optarg, &ptr);
+
+    if (r == 0 && ptr == optarg)
+        return (-1);
+
+    if (errno == ERANGE)
+        return (-1);
+
+    *value = r;
+    return (0);
+}
+
+/**
+ * @brief Parse a uint32_t from a string.
+ *
+ * @param optarg String to parse.
+ * @param value Pointer to variable to fill.
+ * @return 0 on success, -1 on failure.
+ */
+static int
+ch_parse_uint32(char *optarg, uint32_t *value)
+{
+    char *ptr;
+    uint32_t r = (uint32_t) strtoul(optarg, &ptr, 10);
+
+    if (r == 0 && ptr == optarg)
+        return (-1);
+
+    if (errno == ERANGE)
+        return (-1);
+
+    *value = r;
+    return (0);
+}
+
 int
 ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
 {
@@ -25,10 +71,8 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
         break;
 
     case 't': {
-        char *ptr;
-        double r = strtod(optarg, &ptr);
-
-        if (r == 0 && ptr == optarg) {
+        double r;
+        if (ch_parse_double(optarg, &r) == -1) {
             fprintf(stderr, "Invalid timeout.\n");
             return (-1);
         }
@@ -37,15 +81,16 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
         break;
     }
 
-    case 'b':
-        device->num_buffers = (uint32_t) strtoul(optarg, NULL, 10);
-        if (errno == EINVAL || errno == ERANGE || device->num_buffers == 0) {
-            fprintf(stderr, "Invalid value in buffer count argument %s.\n",
-                    optarg);
+    case 'b': {
+        uint32_t r;
+        if (ch_parse_uint32(optarg, &r) == -1) {
+            fprintf(stderr, "Invalid number of buffers.\n");
             return (-1);
         }
 
+        device->num_buffers = r;
         break;
+    }
 
     case 'f':
         if (strnlen(optarg, 5) > 4) {
@@ -74,11 +119,9 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
 	break;
 
     case 's': {
-        char *ptr;
-        uint32_t r = strtoul(optarg, &ptr, 10);
-
-        if (r == 0 && ptr == optarg) {
-            fprintf(stderr, "Invalid stride.\n");
+        uint32_t r;
+        if (ch_parse_uint32(optarg, &r) == -1) {
+            fprintf(stderr, "Invalid alignment value.\n");
             return (-1);
         }
 
@@ -95,6 +138,17 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
     return (0);
 }
 
+inline void
+ch_calc_stride(struct ch_device *device, uint32_t alignment)
+{
+    uint32_t stride = device->framesize.width;
+
+    if ((stride % alignment) != 0)
+        stride += alignment - (stride % alignment);
+
+    device->out_stride = stride;
+}
+
 /**
  * @brief Robust wrapper around ioctl.
  *
@@ -103,7 +157,7 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
  * @param arg Arguments to request.
  * @return 0 on success, -1 on failure. 1 on EINVAL.
  */
-static inline int
+inline int
 ch_ioctl(struct ch_device *device, int request, void *arg)
 {
     int r;
@@ -132,7 +186,6 @@ ch_ioctl(struct ch_device *device, int request, void *arg)
             // Clean up allocated structures.
             ch_stop_stream(device);
         }
-
 
         return (-1);
     }

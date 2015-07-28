@@ -81,15 +81,29 @@ ch_timespec_to_sec(struct timespec t)
     return ((double) t.tv_sec + (double) t.tv_nsec / 1e9);
 }
 
-inline void
-ch_calc_stride(struct ch_device *device, uint32_t alignment)
+int
+ch_start_thread(pthread_t *thread, const pthread_attr_t *attr,
+                void *(*start_routine)(void *), void *arg)
 {
-    uint32_t stride = device->framesize.width;
+    int r;
+    if ((r = pthread_create(thread, attr, start_routine, arg)) != 0) {
+        ch_error_no("Failed to start thread.", r);
+        return (-1);
+    }
 
-    if ((stride % alignment) != 0)
-        stride += alignment - (stride % alignment);
+    return (0);
+}
 
-    device->out_stride = stride;
+int
+ch_join_thread(pthread_t thread, void **ret)
+{
+    int r;
+    if ((r = pthread_join(thread, ret)) != 0) {
+        ch_error_no("Failed to join thread.", r);
+        return (-1);
+    }
+
+    return (0);
 }
 
 void

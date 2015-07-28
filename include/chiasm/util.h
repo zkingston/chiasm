@@ -110,12 +110,19 @@ struct timespec ch_sec_to_timespec(double seconds);
 double ch_timespec_to_sec(struct timespec t);
 
 /**
- * @brief Calculate image stride from framesize and alignment value.
+ * @brief Wrapper around pthread_create.
  *
- * @param device Device to calculate stride for.
- * @param alignment Start-byte alignment value.
+ * @return 0 on success, -1 on failure.
  */
-void ch_calc_stride(struct ch_device *device, uint32_t alignment);
+int ch_start_thread(pthread_t *thread, const pthread_attr_t *attr,
+                    void *(*start_routine)(void *), void *arg);
+
+/**
+ * @brief Wrapper around pthread_join.
+ *
+ * @return 0 on success, -1 on failure.
+ */
+int ch_join_thread(pthread_t thread, void **ret);
 
 /**
  * @brief Enables or disables logging in library functions.
