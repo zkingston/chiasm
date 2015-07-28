@@ -23,6 +23,8 @@ bool active = false;
 double p[100][4][2];
 size_t pc = 0;
 
+uint32_t width, height, stride;
+
 static void *
 worker_thread(void *arg)
 {
@@ -45,12 +47,15 @@ worker_thread(void *arg)
             apriltag_detection_t *det;
             zarray_get(detections, i, &det);
 
+            fprintf(stderr, "Detected Tag %d.\n", det->id);
+
             size_t x;
             for (x = 0; x < 4; x++) {
                 p[i][x][0] = det->p[x][0];
                 p[i][x][1] = det->p[x][1];
             }
         }
+        fprintf(stderr, "\n");
 
         apriltag_detections_destroy(detections);
 
@@ -64,9 +69,13 @@ worker_thread(void *arg)
 }
 
 int
-CH_DL_INIT(struct ch_device *device)
+CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 {
-    device = (struct ch_device *) device;
+    width = device->framesize.width;
+    height = device->framesize.height;
+
+    cx->out_pixfmt = AV_PIX_FMT_GRAY8;
+    stride = cx->out_stride = ch_calc_stride(cx, width, 96);
 
     // Initialize AprilTag tag family.
     tag_family = tag36h11_create();
@@ -98,13 +107,13 @@ CH_DL_INIT(struct ch_device *device)
 }
 
 int
-CH_DL_CALL(struct ch_device *device)
+CH_DL_CALL(struct ch_frmbuf *in_buf)
 {
     image_u8_t image = {
-        .width = device->framesize.width,
-        .height = device->framesize.height,
-        .stride = device->out_stride,
-        .buf = device->out_buffer.start
+        .width = width,
+        .height = height,
+        .stride = stride,
+        .buf = in_buf->start
     };
 
     if (saved_image == NULL) {
@@ -112,26 +121,12 @@ CH_DL_CALL(struct ch_device *device)
         pthread_cond_signal(&worker_cond);
     }
 
-    if (pc) {
-        size_t i;
-        for (i = 0; i < pc; i++) {
-            size_t x;
-            for (x = 0; x < 4; x++)
-                image_u8_draw_line(&image,
-                                   p[i][x][0], p[i][x][1],
-                                   p[i][(x + 1) % 4][0], p[i][(x + 1) % 4][1],
-                                   255, 3);
-        }
-    }
-
     return (0);
 }
 
 int
-CH_DL_QUIT(struct ch_device *device)
+CH_DL_QUIT(void)
 {
-    device = (struct ch_device *) device;
-
     pthread_cond_signal(&worker_cond);
     active = false;
 
