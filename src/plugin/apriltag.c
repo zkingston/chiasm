@@ -7,6 +7,7 @@
 #include <tag36h11.h>
 #include <common/zarray.h>
 #include <common/image_u8.h>
+#include <common/homography.h>
 
 #include <chiasm.h>
 
@@ -65,7 +66,13 @@ CH_DL_CALL(struct ch_frmbuf *in_buf)
         apriltag_detection_t *det;
         zarray_get(detections, i, &det);
 
-        fprintf(stderr, "Detected Tag %d.\n", det->id);
+        matd_t *pose = homography_to_pose(det->H, width / 2, height / 2, width / 2, height / 2);
+
+        double x = matd_get(pose, 0, 3) * 2.05;
+        double y = matd_get(pose, 1, 3) * 2.05;
+        double z = matd_get(pose, 2, 3) * 2.05;
+
+        fprintf(stderr, "Tag %d - (%5.2f, %5.2f, %5.2f)\n", det->id, x, y, z);
     }
 
     fprintf(stderr, "\n");
