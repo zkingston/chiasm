@@ -1,4 +1,5 @@
 CC      = gcc
+CXX     = g++
 CFLAGS  = -Wall -Wextra -g3 -O0 -Iinclude -fPIC
 LDFLAGS = -lswscale -lavutil -lavformat -lavcodec -lpthread -ldl
 
@@ -6,10 +7,17 @@ LDFLAGS = -lswscale -lavutil -lavformat -lavcodec -lpthread -ldl
 CFLAGS  += `pkg-config --cflags gtk+-3.0`
 LDFLAGS += `pkg-config --libs gtk+-3.0`
 
+# C++ Stuff
+CXXFLAGS = $(CFLAGS)
+
 # AprilTag configuration. Requires C99 mode.
 ATDIR   = ../apriltag
 CFLAGS  += -I$(ATDIR) -std=gnu99
 LDFLAGS += $(ATDIR)/libapriltag.a
+
+# OpenCV configuration
+CXXFLAGS  += `pkg-config --cflags opencv`
+LDFLAGS += `pkg-config --libs opencv`
 
 SRCDIR  = src
 PLGDIR  = $(SRCDIR)/plugin
@@ -20,7 +28,7 @@ LIBOBJS = $(patsubst %.c, %.o, $(LIBSRCS))
 LIBRARY = libchiasm.a
 
 # Output programs and plugins.
-OBJS = stream control output.so display.so apriltag.so
+OBJS = stream control output.so display.so apriltag.so calibrate.so
 
 .PHONY: all
 all: $(LIBRARY) $(OBJS)
@@ -33,6 +41,9 @@ $(LIBRARY): $(LIBOBJS)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # Plugin building.
 %.so: $(PLGDIR)/%.o
