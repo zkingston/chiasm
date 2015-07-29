@@ -198,7 +198,7 @@ ch_validate_device(struct ch_device *device)
 void
 ch_init_device(struct ch_device *device)
 {
-    device->name = CH_DEFAULT_DEVICE;
+    device->name = (char *) CH_DEFAULT_DEVICE;
     device->fd = 0;
     pthread_mutex_init(&device->mutex, NULL);
 
@@ -283,13 +283,15 @@ ch_enum_fmts(struct ch_device *device)
         return (NULL);
 
     // Create storage array and fill.
-    struct ch_fmts *fmts = ch_calloc(1, sizeof(struct ch_fmts));
+    struct ch_fmts *fmts =
+        (struct ch_fmts *) ch_calloc(1, sizeof(struct ch_fmts));
+
     if (fmts == NULL)
         return (NULL);
 
     fmts->length = fmtdesc.index;
 
-    fmts->fmts = ch_calloc(fmtdesc.index, sizeof(uint32_t));
+    fmts->fmts = (uint32_t *) ch_calloc(fmtdesc.index, sizeof(uint32_t));
     if (fmts->fmts == NULL) {
         free(fmts);
         return (NULL);
@@ -337,13 +339,17 @@ ch_enum_frmsizes(struct ch_device *device)
         return (NULL);
 
     // Create storage array and fill.
-    struct ch_frmsizes *frmsizes = ch_calloc(1, sizeof(struct ch_frmsizes));
+    struct ch_frmsizes *frmsizes =
+        (struct ch_frmsizes *) ch_calloc(1, sizeof(struct ch_frmsizes));
+
     if (frmsizes == NULL)
         return (NULL);
 
     frmsizes->length = frmsize.index;
 
-    frmsizes->frmsizes = ch_calloc(frmsize.index, sizeof(struct ch_rect));
+    frmsizes->frmsizes =
+        (struct ch_rect *) ch_calloc(frmsize.index, sizeof(struct ch_rect));
+
     if (frmsizes->frmsizes == NULL) {
         free(frmsizes);
         return (NULL);
@@ -489,11 +495,13 @@ ch_enum_ctrls(struct ch_device *device)
 	return (NULL);
 
     // Create storage array and fill.
-    struct ch_ctrls *ctrls = ch_calloc(1, sizeof(struct ch_ctrls));
+    struct ch_ctrls *ctrls =
+        (struct ch_ctrls *) ch_calloc(1, sizeof(struct ch_ctrls));
+
     if (ctrls == NULL)
         return (NULL);
 
-    ctrls->ctrls = ch_calloc(length, sizeof(struct ch_ctrl));
+    ctrls->ctrls = (struct ch_ctrl *) ch_calloc(length, sizeof(struct ch_ctrl));
     if (ctrls->ctrls == NULL) {
         free(ctrls);
         return (NULL);
@@ -531,12 +539,16 @@ ch_enum_ctrl_menu(struct ch_device *device, struct ch_ctrl *ctrl)
     struct v4l2_querymenu qmenu;
     CH_CLEAR(&qmenu);
 
-    struct ch_ctrl_menu *menu = ch_calloc(1, sizeof(struct ch_ctrl_menu));
+    struct ch_ctrl_menu *menu =
+        (struct ch_ctrl_menu *) ch_calloc(1, sizeof(struct ch_ctrl_menu));
+
     if (menu == NULL)
 	return (NULL);
 
     menu->length = ctrl->max - ctrl->min + 1;
-    menu->items = ch_calloc(menu->length, sizeof(union ch_ctrl_menu_item));
+    menu->items = (union ch_ctrl_menu_item *)
+        ch_calloc(menu->length, sizeof(union ch_ctrl_menu_item));
+
     if (menu->items == NULL) {
 	free(menu);
 	return (NULL);
@@ -586,7 +598,9 @@ ch_find_ctrl(struct ch_device *device, const char *ctrl_name)
 	ch_error("Control not found.");
 
     else {
-	struct ch_ctrl *ctrl_t = ch_calloc(1, sizeof(struct ch_ctrl));
+	struct ch_ctrl *ctrl_t =
+            (struct ch_ctrl *) ch_calloc(1, sizeof(struct ch_ctrl));
+
 	if (ctrl_t == NULL) {
 	    ctrl = NULL;
 	    goto clean;
@@ -776,7 +790,9 @@ ch_map_buffers(struct ch_device *device)
     }
 
     // Allocate buffers.
-    device->in_buffers = ch_calloc(req.count, sizeof(struct ch_frmbuf));
+    device->in_buffers =
+        (struct ch_frmbuf *) ch_calloc(req.count, sizeof(struct ch_frmbuf));
+
     if (device->in_buffers == NULL)
         return (-1);
 
@@ -796,7 +812,7 @@ ch_map_buffers(struct ch_device *device)
         }
 
         device->in_buffers[idx].length = buf.length;
-        device->in_buffers[idx].start = mmap(
+        device->in_buffers[idx].start = (uint8_t *) mmap(
                 NULL,
                 buf.length,
                 PROT_READ | PROT_WRITE,
@@ -832,6 +848,8 @@ ch_start_stream(struct ch_device *device)
     if (ch_map_buffers(device) == -1)
         return (-1);
 
+    enum v4l2_buf_type type;
+
     // Query each buffer to be filled.
     size_t idx;
     for (idx = 0; idx < device->num_buffers; idx++) {
@@ -849,7 +867,7 @@ ch_start_stream(struct ch_device *device)
     }
 
     // Start streaming.
-    enum v4l2_buf_type type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
     if (ch_ioctl(device, VIDIOC_STREAMON, &type) == -1) {
         ch_error("Failed to start stream.");
@@ -908,6 +926,9 @@ ch_stream(struct ch_device *device, struct ch_dl **plugins, uint32_t n_plugins)
         return (-1);
     }
 
+    struct timespec ts;
+    double pt = -1;
+
     int r = 0;
     // Initialize and create plugin context and threads.
     if ((r = ch_init_plugins(device, plugins, n_plugins)) == -1)
@@ -921,9 +942,6 @@ ch_stream(struct ch_device *device, struct ch_dl **plugins, uint32_t n_plugins)
     // Initialize decoding context.
     if ((r = ch_init_decode_cx(device, &decode)) == -1)
         goto clean;
-
-    struct timespec ts;
-    double pt = -1;
 
     while (device->stream) {
         // Update FPS

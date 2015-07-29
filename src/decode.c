@@ -44,7 +44,9 @@ ch_init_plugin_out(struct ch_device *device, struct ch_dl_cx *cx)
         cx->out_buffer[idx].length = length;
 
         // Allocate output buffer.
-        cx->out_buffer[idx].start = ch_calloc(1, length);
+        cx->out_buffer[idx].start =
+            (uint8_t *) ch_calloc(length, sizeof(uint8_t));
+
         if (cx->out_buffer[idx].start == NULL)
             goto clean;
     }
@@ -86,14 +88,14 @@ ch_init_decode_cx(struct ch_device *device, struct ch_decode_cx *cx)
 	ch_codec_registered = true;
     }
 
+    AVCodec *codec = NULL;
+    enum AVCodecID codec_id = AV_CODEC_ID_NONE;
     cx->codec_cx = NULL;
 
     // Setup I/O frames.
     cx->frame_in = av_frame_alloc();
     if (cx->frame_in == NULL)
         goto clean;
-
-    enum AVCodecID codec_id = AV_CODEC_ID_NONE;
 
     // Find codec ID based on input pixel format.
     switch (device->in_pixfmt) {
@@ -114,7 +116,7 @@ ch_init_decode_cx(struct ch_device *device, struct ch_decode_cx *cx)
     }
 
     // Find and allocate codec context.
-    AVCodec *codec = avcodec_find_decoder(codec_id);
+    codec = avcodec_find_decoder(codec_id);
     if (codec == NULL) {
 	ch_error("Failed to find requested codec.");
         return (-1);
@@ -137,7 +139,6 @@ ch_init_decode_cx(struct ch_device *device, struct ch_decode_cx *cx)
 	ch_error("Failed to open codec.");
 	goto clean;
     }
-
 
     return (0);
 

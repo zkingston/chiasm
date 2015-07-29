@@ -6,7 +6,7 @@
 struct ch_dl *
 ch_dl_load(const char *name)
 {
-    struct ch_dl *plugin = ch_calloc(1, sizeof(struct ch_dl));
+    struct ch_dl *plugin = (struct ch_dl *) ch_calloc(1, sizeof(struct ch_dl));
     if (plugin == NULL)
 	return (NULL);
 

@@ -1,17 +1,13 @@
 * Major things
-Have the stream function register plugins, which can register
-   requested output formats.
-
 New display plugin to also show tag locations. Use some form of GL.
    - Maybe WebGL?
 
 Camera Calibration routines.
-   - Either reimplement or use OpenCV backend.
+   - OpenCV plugin
    - Possibly use a version of the AprilTag calibration routine?
+
+3D Pose from AprilTag detection.
 
 * Minor things
 Set up Doxygen.
 Test on additional cameras.
-
-* Possible things
-Asynchronous plugin callbacks.
