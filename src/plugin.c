@@ -72,8 +72,11 @@ ch_call_plugins(struct ch_device *device, struct ch_decode_cx *decode,
 {
     size_t idx;
     for (idx = 0; idx < n_plugins; idx++) {
-        ch_output(device, decode, &plugins[idx]->cx);
-        plugins[idx]->callback(&plugins[idx]->cx.out_buffer);
+        if (ch_output(device, decode, &plugins[idx]->cx) == -1)
+            return (-1);
+
+        if (plugins[idx]->callback(&plugins[idx]->cx.out_buffer) == -1)
+            return (-1);
     }
 
     return (0);

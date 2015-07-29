@@ -45,13 +45,14 @@ ch_init_plugin_out(struct ch_device *device, struct ch_dl_cx *cx)
 	goto clean;
 
     cx->frame_out = av_frame_alloc();
-    if (cx->frame_out == NULL)
+    if (cx->frame_out == NULL) {
+        ch_error("Failed to allocated output frame.");
         goto clean;
+    }
 
     int r = avpicture_fill((AVPicture *) cx->frame_out, cx->out_buffer.start,
                    cx->out_pixfmt, cx->out_stride / b_per_pix,
                    device->framesize.height);
-
     if (r < 0) {
         ch_error("Failed to setup output frame fields.");
         goto clean;
@@ -88,7 +89,6 @@ ch_init_decode_cx(struct ch_device *device, struct ch_decode_cx *cx)
 
     cx->codec_cx = NULL;
     cx->frame_in = NULL;
-
     // Setup I/O frames.
     cx->frame_in = av_frame_alloc();
     if (cx->frame_in == NULL)

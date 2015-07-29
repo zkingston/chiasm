@@ -18,6 +18,7 @@ extern "C" {
 /**
  * @brief Calculate stride of an image from a format, width, alignment.
  *
+ * @param cx Plugin context, contains pixel format.
  * @param width Width of the image in bytes.
  * @param alignment Alignment of the image in bytes.
  * @return The calculated image stride.

@@ -154,22 +154,6 @@ int ch_set_ctrl(struct ch_device *device, struct ch_ctrl *ctrl, int32_t value);
 int ch_set_fmt(struct ch_device *device);
 
 /**
- * @brief Begin streaming from device.
- *
- * @param device Device to begin streaming from.
- * @return 0 on success, -1 on failure.
- */
-int ch_start_stream(struct ch_device *device);
-
-/**
- * @brief Stop streaming from a device.
- *
- * @param device Device to stop streaming from.
- * @return 0 on succes, -1 on failure.
- */
-int ch_stop_stream(struct ch_device *device);
-
-/**
  * @brief Stream video and call a callback upon every new frame.
  *
  * @param device Device to stream from.

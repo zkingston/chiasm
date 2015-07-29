@@ -16,6 +16,8 @@
 
 #include <chiasm.h>
 
+int ch_stop_stream(struct ch_device *device);
+
 /**
  * @brief Parse a double from a string.
  *
@@ -818,6 +820,12 @@ error:
     return (-1);
 }
 
+/**
+ * @brief Begin streaming from device.
+ *
+ * @param device Device to begin streaming from.
+ * @return 0 on success, -1 on failure.
+ */
 int
 ch_start_stream(struct ch_device *device)
 {
@@ -856,6 +864,12 @@ error:
     return (-1);
 }
 
+/**
+ * @brief Stop streaming from a device.
+ *
+ * @param device Device to stop streaming from.
+ * @return 0 on succes, -1 on failure.
+ */
 int
 ch_stop_stream(struct ch_device *device)
 {
@@ -894,19 +908,20 @@ ch_stream(struct ch_device *device, struct ch_dl **plugins, uint32_t n_plugins)
         return (-1);
     }
 
-    if (ch_init_plugins(device, plugins, n_plugins) == -1)
-        return (-1);
+    int r = 0;
+    if ((r = ch_init_plugins(device, plugins, n_plugins)) == -1)
+        goto clean;
 
-    if (ch_start_stream(device) == -1)
-        return (-1);
+    if ((r = ch_start_stream(device)) == -1)
+        goto clean;
 
     struct ch_decode_cx decode;
-    ch_init_decode_cx(device, &decode);
+    if ((r = ch_init_decode_cx(device, &decode)) == -1)
+        goto clean;
 
     struct timespec ts;
     double pt = -1;
 
-    int r = 0;
     while (device->stream) {
         // Update FPS
         clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -940,6 +955,10 @@ ch_stream(struct ch_device *device, struct ch_dl **plugins, uint32_t n_plugins)
             break;
         }
 
+        // Verify we are still streaming after select.
+        if (!device->stream)
+            break;
+
         // Dequeue buffer.
         struct v4l2_buffer buf;
         CH_CLEAR(&buf);
@@ -962,28 +981,11 @@ ch_stream(struct ch_device *device, struct ch_dl **plugins, uint32_t n_plugins)
         // Set current size of input buffer.
 	device->in_buffers[buf.index].length = buf.bytesused;
 
-        // Obtain lock on stream buffers.
-        pthread_mutex_lock(&device->mutex);
-
-        // Verify we are still streaming after obtaining the lock.
-        if (!device->stream) {
-            pthread_mutex_unlock(&device->mutex);
+        if ((r = ch_decode(device, &device->in_buffers[buf.index], &decode)) == -1)
             break;
-        }
 
-        int f = ch_decode(device, &device->in_buffers[buf.index], &decode);
-        if ((r = f) == -1) {
-            pthread_mutex_unlock(&device->mutex);
+        if ((r = ch_call_plugins(device, &decode, plugins, n_plugins)) == -1)
             break;
-        }
-
-        if ((r = ch_call_plugins(device, &decode, plugins, n_plugins)) == -1) {
-            pthread_mutex_unlock(&device->mutex);
-            break;
-        }
-
-        // Unlock stream buffers.
-        pthread_mutex_unlock(&device->mutex);
 
         // Queue buffer.
         if ((r = ch_ioctl(device, VIDIOC_QBUF, &buf)) == -1) {
@@ -992,6 +994,7 @@ ch_stream(struct ch_device *device, struct ch_dl **plugins, uint32_t n_plugins)
         }
     }
 
+clean:
     ch_destroy_decode_cx(&decode);
     ch_quit_plugins(plugins, n_plugins);
     ch_stop_stream(device);
