@@ -160,5 +160,9 @@ main(int argc, char *argv[])
 cleanup:
     ch_close_device(&device);
 
+    size_t idx;
+    for (idx = 0; idx < plugin_max; idx++)
+        ch_dl_close(plugins[idx]);
+
     return (r);
 }

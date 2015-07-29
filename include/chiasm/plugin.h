@@ -34,7 +34,7 @@ void ch_dl_close(struct ch_dl *plugin);
 int ch_init_plugins(struct ch_device *device, struct ch_dl **plugins, size_t n_plugins);
 
 /**
- * @brief Perform callbacks on an array of plugins.
+ * @brief Update image for an array of plugins.
  *
  * @param device The device the plugins are associated with.
  * @param decode The decoding context used for stream decompression.
@@ -42,7 +42,7 @@ int ch_init_plugins(struct ch_device *device, struct ch_dl **plugins, size_t n_p
  * @param n_plugins The number of plugins in the array.
  * @return 0 on success, -1 on failure.
  */
-int ch_call_plugins(struct ch_device *device, struct ch_decode_cx *decode,
+int ch_update_plugins(struct ch_device *device, struct ch_decode_cx *decode,
                     struct ch_dl *plugins[], size_t n_plugins);
 
 /**

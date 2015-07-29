@@ -48,13 +48,8 @@ worker_thread(void *arg)
             zarray_get(detections, i, &det);
 
             fprintf(stderr, "Detected Tag %d.\n", det->id);
-
-            size_t x;
-            for (x = 0; x < 4; x++) {
-                p[i][x][0] = det->p[x][0];
-                p[i][x][1] = det->p[x][1];
-            }
         }
+
         fprintf(stderr, "\n");
 
         apriltag_detections_destroy(detections);
@@ -109,14 +104,14 @@ CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 int
 CH_DL_CALL(struct ch_frmbuf *in_buf)
 {
-    image_u8_t image = {
-        .width = width,
-        .height = height,
-        .stride = stride,
-        .buf = in_buf->start
-    };
-
     if (saved_image == NULL) {
+        image_u8_t image = {
+            .width = width,
+            .height = height,
+            .stride = stride,
+            .buf = in_buf->start
+        };
+
         saved_image = image_u8_copy(&image);
         pthread_cond_signal(&worker_cond);
     }

@@ -20,6 +20,8 @@ ch_dl_load(const char *name)
 	return (NULL);
     }
 
+    dlerror();
+
     // Load all functions. None are required.
     plugin->init = (int (*)(struct ch_device *, struct ch_dl_cx *))
         dlsym(plugin->so, CH_STR(CH_DL_INIT));
@@ -60,28 +62,12 @@ ch_dl_close(struct ch_dl *plugin)
     free(plugin);
 }
 
-int
-ch_init_plugins(struct ch_device *device, struct ch_dl *plugins[], size_t n_plugins)
-{
-    size_t idx;
-    for (idx = 0; idx < n_plugins; idx++) {
-        if (plugins[idx]->init(device, &plugins[idx]->cx) == -1) {
-            ch_error("Failed to initialize plugin.");
-            ch_quit_plugins(plugins, idx);
-            return (-1);
-        }
-
-        // Initialize output context for plugin.
-        if (ch_init_plugin_out(device, &plugins[idx]->cx) == -1)
-            return (-1);
-
-        if (ch_create_plugin_thread(plugins[idx]) == -1)
-            return (-1);
-    }
-
-    return (0);
-}
-
+/**
+ * @brief A plugin thread that waits for new frames to arrive and performs a
+ *        callback.
+ * @param arg The plugin.
+ * @return Always NULL.
+ */
 void *
 ch_plugin_thread(void *arg)
 {
@@ -112,7 +98,13 @@ ch_plugin_thread(void *arg)
     return (NULL);
 }
 
-int
+/**
+ * @brief Create a plugin thread.
+ *
+ * @param plugin The plugin to create the thread for.
+ * @return 0 on success, -1 on failure.
+ */
+static int
 ch_create_plugin_thread(struct ch_dl *plugin)
 {
     struct ch_dl_cx *cx = &plugin->cx;
@@ -124,7 +116,13 @@ ch_create_plugin_thread(struct ch_dl *plugin)
     return (0);
 }
 
-int
+/**
+ * @brief Join a plugin thread.
+ *
+ * @param plugin Plugin to stop and join.
+ * @return 0 on success, -1 on failure.
+ */
+static int
 ch_join_plugin_thread(struct ch_dl *plugin)
 {
     plugin->cx.active = false;
@@ -132,6 +130,28 @@ ch_join_plugin_thread(struct ch_dl *plugin)
 
     if (ch_join_thread(plugin->cx.thread, NULL) == -1)
         return (-1);
+
+    return (0);
+}
+
+int
+ch_init_plugins(struct ch_device *device, struct ch_dl *plugins[], size_t n_plugins)
+{
+    size_t idx;
+    for (idx = 0; idx < n_plugins; idx++) {
+        if (plugins[idx]->init(device, &plugins[idx]->cx) == -1) {
+            ch_error("Failed to initialize plugin.");
+            ch_quit_plugins(plugins, idx);
+            return (-1);
+        }
+
+        // Initialize output context for plugin.
+        if (ch_init_plugin_out(device, &plugins[idx]->cx) == -1)
+            return (-1);
+
+        if (ch_create_plugin_thread(plugins[idx]) == -1)
+            return (-1);
+    }
 
     return (0);
 }
@@ -167,6 +187,8 @@ ch_quit_plugins(struct ch_dl *plugins[], size_t n_plugins)
 
         if (ch_join_plugin_thread(plugins[idx]) == -1)
             continue;
+
+        ch_destroy_plugin_out(&plugins[idx]->cx);
     }
 
     return (0);

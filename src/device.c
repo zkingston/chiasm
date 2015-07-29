@@ -909,13 +909,16 @@ ch_stream(struct ch_device *device, struct ch_dl **plugins, uint32_t n_plugins)
     }
 
     int r = 0;
+    // Initialize and create plugin context and threads.
     if ((r = ch_init_plugins(device, plugins, n_plugins)) == -1)
         goto clean;
 
+    // Start streaming from the camera.
     if ((r = ch_start_stream(device)) == -1)
         goto clean;
 
     struct ch_decode_cx decode;
+    // Initialize decoding context.
     if ((r = ch_init_decode_cx(device, &decode)) == -1)
         goto clean;
 
@@ -981,8 +984,10 @@ ch_stream(struct ch_device *device, struct ch_dl **plugins, uint32_t n_plugins)
         // Set current size of input buffer.
 	device->in_buffers[buf.index].length = buf.bytesused;
 
+        // Decode the new frame.
         if ((r = ch_decode(device, &device->in_buffers[buf.index], &decode)) == -1)
             break;
+
 
         if ((r = ch_update_plugins(device, &decode, plugins, n_plugins)) == -1)
             break;
