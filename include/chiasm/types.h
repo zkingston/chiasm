@@ -15,6 +15,8 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
 
+#define CH_DL_NUMBUF 2
+
 /**
  * @brief Simple struct to describe a rectangle.
  */
@@ -125,8 +127,12 @@ struct ch_decode_cx {
  * @brief Plugin output image format context.
  */
 struct ch_dl_cx {
-    struct ch_frmbuf  out_buffer; /**< Output buffer containing image. */
+    struct ch_frmbuf  out_buffer[CH_DL_NUMBUF];
+    uint64_t          nonce[CH_DL_NUMBUF];
+    uint32_t          select;
+
     uint32_t          out_pixfmt; /**< Output pixel format. AV pixelformat. */
+    uint32_t          b_per_pix;
     uint32_t          out_stride; /**< Stride of the output image. */
     struct SwsContext *sws_cx;    /**< SWS context for decoding. */
     AVFrame           *frame_out; /**< Allocated output frame. */

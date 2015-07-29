@@ -31,8 +31,14 @@ ch_dl_load(const char *name)
 	(int (*)(void)) dlsym(plugin->so, CH_STR(CH_DL_QUIT));
 
     // Initialize plugin context.
-    plugin->cx.out_buffer.start = NULL;
-    plugin->cx.out_buffer.length = 0;
+    size_t idx;
+    for (idx = 0; idx < CH_DL_NUMBUF; idx++) {
+        plugin->cx.out_buffer[idx].start = NULL;
+        plugin->cx.out_buffer[idx].length = 0;
+    }
+
+    plugin->cx.select = 0;
+    plugin->cx.b_per_pix = 0;
     plugin->cx.out_pixfmt = CH_DEFAULT_OUTFMT;
     plugin->cx.out_stride = 0;
     plugin->cx.sws_cx = NULL;
@@ -72,10 +78,12 @@ ch_call_plugins(struct ch_device *device, struct ch_decode_cx *decode,
 {
     size_t idx;
     for (idx = 0; idx < n_plugins; idx++) {
-        if (ch_output(device, decode, &plugins[idx]->cx) == -1)
+        struct ch_dl_cx *cx = &plugins[idx]->cx;
+
+        if (ch_output(device, decode, cx) == -1)
             return (-1);
 
-        if (plugins[idx]->callback(&plugins[idx]->cx.out_buffer) == -1)
+        if (plugins[idx]->callback(&cx->out_buffer[cx->select]) == -1)
             return (-1);
     }
 

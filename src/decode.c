@@ -18,8 +18,8 @@ bool ch_codec_registered = false;
 inline uint32_t
 ch_calc_stride(struct ch_dl_cx *cx, uint32_t width, uint32_t alignment)
 {
-    uint32_t b_per_pix = avpicture_get_size(cx->out_pixfmt, 1, 1);
-    uint32_t stride = width * b_per_pix;
+    cx->b_per_pix = avpicture_get_size(cx->out_pixfmt, 1, 1);
+    uint32_t stride = width * cx->b_per_pix;
 
     if ((stride % alignment) != 0)
         stride += alignment - (stride % alignment);
@@ -30,31 +30,28 @@ ch_calc_stride(struct ch_dl_cx *cx, uint32_t width, uint32_t alignment)
 int
 ch_init_plugin_out(struct ch_device *device, struct ch_dl_cx *cx)
 {
-    uint32_t b_per_pix = avpicture_get_size(cx->out_pixfmt, 1, 1);
+    cx->b_per_pix = avpicture_get_size(cx->out_pixfmt, 1, 1);
 
     // If the output stride was uninitialized by the plugin, use the width.
     if (cx->out_stride == 0)
-        cx->out_stride = device->framesize.width * b_per_pix;
+        cx->out_stride = device->framesize.width * cx->b_per_pix;
 
-    // Get size needed for output buffer.
-    cx->out_buffer.length = cx->out_stride * device->framesize.height;
+    uint32_t length = cx->out_stride * device->framesize.height;
 
-    // Allocate output buffer.
-    cx->out_buffer.start = ch_calloc(1, cx->out_buffer.length);
-    if (cx->out_buffer.start == NULL)
-	goto clean;
+    size_t idx;
+    for (idx = 0; idx < CH_DL_NUMBUF; idx++) {
+        // Get size needed for output buffer.
+        cx->out_buffer[idx].length = length;
+
+        // Allocate output buffer.
+        cx->out_buffer[idx].start = ch_calloc(1, length);
+        if (cx->out_buffer[idx].start == NULL)
+            goto clean;
+    }
 
     cx->frame_out = av_frame_alloc();
     if (cx->frame_out == NULL) {
         ch_error("Failed to allocated output frame.");
-        goto clean;
-    }
-
-    int r = avpicture_fill((AVPicture *) cx->frame_out, cx->out_buffer.start,
-                   cx->out_pixfmt, cx->out_stride / b_per_pix,
-                   device->framesize.height);
-    if (r < 0) {
-        ch_error("Failed to setup output frame fields.");
         goto clean;
     }
 
@@ -68,8 +65,10 @@ clean:
 void
 ch_destroy_plugin_out(struct ch_dl_cx *cx)
 {
-    if (cx->out_buffer.start)
-        free(cx->out_buffer.start);
+    size_t idx;
+    for (idx = 0; idx < CH_DL_NUMBUF; idx++)
+        if (cx->out_buffer[idx].start)
+            free(cx->out_buffer[idx].start);
 
     if (cx->frame_out)
         av_frame_free(&cx->frame_out);
@@ -88,7 +87,7 @@ ch_init_decode_cx(struct ch_device *device, struct ch_decode_cx *cx)
     }
 
     cx->codec_cx = NULL;
-    cx->frame_in = NULL;
+
     // Setup I/O frames.
     cx->frame_in = av_frame_alloc();
     if (cx->frame_in == NULL)
@@ -203,6 +202,14 @@ int
 ch_output(struct ch_device *device, struct ch_decode_cx *decode,
           struct ch_dl_cx *cx)
 {
+    if (0 > avpicture_fill((AVPicture *) cx->frame_out,
+                           cx->out_buffer[cx->select].start,
+                           cx->out_pixfmt, cx->out_stride / cx->b_per_pix,
+                           device->framesize.height)) {
+        ch_error("Failed to setup output frame fields.");
+        return (-1);
+    }
+
     if (cx->sws_cx == NULL) {
         cx->sws_cx = sws_getContext(
             device->framesize.width,
