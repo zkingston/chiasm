@@ -182,11 +182,11 @@ ch_quit_plugins(struct ch_dl *plugins[], size_t n_plugins)
 {
     size_t idx;
     for (idx = 0; idx < n_plugins; idx++) {
+        if (ch_join_plugin_thread(plugins[idx]) == -1)
+            ch_error("Failed to join plugin thread.");
+
         if (plugins[idx]->quit() == -1)
             ch_error("Failed to close plugin.");
-
-        if (ch_join_plugin_thread(plugins[idx]) == -1)
-            continue;
 
         ch_destroy_plugin_out(&plugins[idx]->cx);
     }

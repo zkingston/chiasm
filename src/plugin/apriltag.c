@@ -12,56 +12,8 @@
 
 apriltag_family_t *tag_family = NULL;
 apriltag_detector_t *tag_detector = NULL;
-image_u8_t *saved_image = NULL;
-
-pthread_t thread = 0;
-pthread_mutex_t worker_mutex;
-pthread_cond_t worker_cond;
-
-bool active = false;
-
-double p[100][4][2];
-size_t pc = 0;
 
 uint32_t width, height, stride;
-
-static void *
-worker_thread(void *arg)
-{
-    struct ch_device *device = (struct ch_device *) arg;
-
-    while (active) {
-        pthread_mutex_lock(&worker_mutex);
-
-        if (saved_image == NULL)
-            pthread_cond_wait(&worker_cond, &worker_mutex);
-
-        if (saved_image == NULL)
-            break;
-
-        zarray_t *detections = apriltag_detector_detect(tag_detector, saved_image);
-        pc = zarray_size(detections);
-
-        int i;
-        for (i = 0; i < zarray_size(detections); i++) {
-            apriltag_detection_t *det;
-            zarray_get(detections, i, &det);
-
-            fprintf(stderr, "Detected Tag %d.\n", det->id);
-        }
-
-        fprintf(stderr, "\n");
-
-        apriltag_detections_destroy(detections);
-
-        image_u8_destroy(saved_image);
-        saved_image = NULL;
-
-        pthread_mutex_unlock(&worker_mutex);
-    }
-
-    return (NULL);
-}
 
 int
 CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
@@ -90,31 +42,35 @@ CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
     tag_detector->refine_decode = 0;
     tag_detector->refine_pose = 0;
 
-    active = true;
-
-    int r;
-    if ((r = pthread_create(&thread, NULL, worker_thread, device)) != 0) {
-	ch_error_no("Failed to create tagging thread.", r);
-	return (-1);
-    }
-
     return (0);
 }
 
 int
 CH_DL_CALL(struct ch_frmbuf *in_buf)
 {
-    if (saved_image == NULL) {
-        image_u8_t image = {
-            .width = width,
-            .height = height,
-            .stride = stride,
-            .buf = in_buf->start
-        };
+    image_u8_t image = {
+        .width = width,
+        .height = height,
+        .stride = stride,
+        .buf = in_buf->start
+    };
 
-        saved_image = image_u8_copy(&image);
-        pthread_cond_signal(&worker_cond);
+    zarray_t *detections = apriltag_detector_detect(tag_detector, &image);
+
+    if (!zarray_size(detections))
+        return (0);
+
+    int i;
+    for (i = 0; i < zarray_size(detections); i++) {
+        apriltag_detection_t *det;
+        zarray_get(detections, i, &det);
+
+        fprintf(stderr, "Detected Tag %d.\n", det->id);
     }
+
+    fprintf(stderr, "\n");
+
+    apriltag_detections_destroy(detections);
 
     return (0);
 }
@@ -122,15 +78,6 @@ CH_DL_CALL(struct ch_frmbuf *in_buf)
 int
 CH_DL_QUIT(void)
 {
-    pthread_cond_signal(&worker_cond);
-    active = false;
-
-    int r;
-    if ((r = pthread_join(thread, NULL)) != 0) {
-	ch_error_no("Failed to join tagging thread.", r);
-	return (-1);
-    }
-
     apriltag_detector_destroy(tag_detector);
     tag36h11_destroy(tag_family);
 
