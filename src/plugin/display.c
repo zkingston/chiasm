@@ -30,9 +30,6 @@ on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer data)
 {
     struct ch_device *device = (struct ch_device *) data;
 
-    cairo_set_source_rgb(cr, 0, 0, 0);
-    cairo_paint(cr);
-
     if (!device->stream)
 	return (FALSE);
 
@@ -85,6 +82,9 @@ setup_gui(void *arg)
     outbuf.start =
         ch_calloc(1, outbuf.length);
 
+    if (outbuf.start == NULL)
+        goto clean;
+
     gtk_init(0, NULL);
 
     GtkWidget *window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -114,6 +114,7 @@ setup_gui(void *arg)
 
     gtk_main();
 
+clean:
     return (NULL);
 }
 
@@ -145,6 +146,7 @@ CH_DL_QUIT(void)
 {
     // Close display thread and join.
     gtk_main_quit();
+    free(outbuf.start);
 
     int r;
     if ((r = pthread_join(gui_thread, NULL)) != 0) {

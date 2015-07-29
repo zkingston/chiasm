@@ -127,17 +127,17 @@ struct ch_decode_cx {
  * @brief Plugin output image format context.
  */
 struct ch_dl_cx {
-    struct ch_frmbuf  out_buffer[CH_DL_NUMBUF];
-    uint64_t          nonce[CH_DL_NUMBUF];
-    uint32_t          select;
+    struct ch_frmbuf  out_buffer[CH_DL_NUMBUF]; /**< Output buffers. */
+    uint64_t          nonce[CH_DL_NUMBUF];      /**< Output buffer nonce. */
+    uint32_t          select;     /**< Which buffer are we currently using? */
 
-    pthread_t         thread;
-    pthread_mutex_t   mutex;
-    pthread_cond_t    cond;
-    bool              active;
+    pthread_t         thread;     /**< Thread ID for plugin. */
+    pthread_mutex_t   mutex;      /**< Mutex for thread producer / consumer. */
+    pthread_cond_t    cond;       /**< Condition variable for thread. */
+    bool              active;     /**< Is the plugin active? */
 
     uint32_t          out_pixfmt; /**< Output pixel format. AV pixelformat. */
-    uint32_t          b_per_pix;
+    uint32_t          b_per_pix;  /**< Bytes per pixel in output format. */
     uint32_t          out_stride; /**< Stride of the output image. */
     struct SwsContext *sws_cx;    /**< SWS context for decoding. */
     AVFrame           *frame_out; /**< Allocated output frame. */

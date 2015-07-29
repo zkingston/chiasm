@@ -35,7 +35,7 @@ CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 
     tag_detector->quad_decimate = 3;
     tag_detector->quad_sigma = 0.0;
-    tag_detector->nthreads = 128;
+    tag_detector->nthreads = 2;
     tag_detector->debug = 0;
 
     tag_detector->refine_edges = 1;
