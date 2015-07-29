@@ -202,8 +202,10 @@ int
 ch_output(struct ch_device *device, struct ch_decode_cx *decode,
           struct ch_dl_cx *cx)
 {
+    uint32_t idx = (cx->select + 1) % CH_DL_NUMBUF;
+
     if (0 > avpicture_fill((AVPicture *) cx->frame_out,
-                           cx->out_buffer[cx->select].start,
+                           cx->out_buffer[idx].start,
                            cx->out_pixfmt, cx->out_stride / cx->b_per_pix,
                            device->framesize.height)) {
         ch_error("Failed to setup output frame fields.");
@@ -239,6 +241,8 @@ ch_output(struct ch_device *device, struct ch_decode_cx *decode,
         cx->frame_out->data,
         cx->frame_out->linesize
     );
+
+    cx->nonce[idx] = cx->nonce[cx->select] + 1;
 
     return (0);
 }

@@ -131,6 +131,11 @@ struct ch_dl_cx {
     uint64_t          nonce[CH_DL_NUMBUF];
     uint32_t          select;
 
+    pthread_t         thread;
+    pthread_mutex_t   mutex;
+    pthread_cond_t    cond;
+    bool              active;
+
     uint32_t          out_pixfmt; /**< Output pixel format. AV pixelformat. */
     uint32_t          b_per_pix;
     uint32_t          out_stride; /**< Stride of the output image. */

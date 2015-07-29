@@ -128,7 +128,7 @@ ch_parse_device_opt(int opt, char *optarg, struct ch_device *device)
  * @param arg Arguments to request.
  * @return 0 on success, -1 on failure. 1 on EINVAL.
  */
-inline int
+int
 ch_ioctl(struct ch_device *device, int request, void *arg)
 {
     int r;
@@ -984,7 +984,7 @@ ch_stream(struct ch_device *device, struct ch_dl **plugins, uint32_t n_plugins)
         if ((r = ch_decode(device, &device->in_buffers[buf.index], &decode)) == -1)
             break;
 
-        if ((r = ch_call_plugins(device, &decode, plugins, n_plugins)) == -1)
+        if ((r = ch_update_plugins(device, &decode, plugins, n_plugins)) == -1)
             break;
 
         // Queue buffer.

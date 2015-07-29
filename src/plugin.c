@@ -35,7 +35,13 @@ ch_dl_load(const char *name)
     for (idx = 0; idx < CH_DL_NUMBUF; idx++) {
         plugin->cx.out_buffer[idx].start = NULL;
         plugin->cx.out_buffer[idx].length = 0;
+        plugin->cx.nonce[idx] = 0;
     }
+
+    plugin->cx.thread = 0;
+    pthread_mutex_init(&plugin->cx.mutex, NULL);
+    pthread_cond_init(&plugin->cx.cond, NULL);
+    plugin->cx.active = false;
 
     plugin->cx.select = 0;
     plugin->cx.b_per_pix = 0;
@@ -66,25 +72,86 @@ ch_init_plugins(struct ch_device *device, struct ch_dl *plugins[], size_t n_plug
         }
 
         // Initialize output context for plugin.
-        ch_init_plugin_out(device, &plugins[idx]->cx);
+        if (ch_init_plugin_out(device, &plugins[idx]->cx) == -1)
+            return (-1);
+
+        if (ch_create_plugin_thread(plugins[idx]) == -1)
+            return (-1);
     }
 
     return (0);
 }
 
+void *
+ch_plugin_thread(void *arg)
+{
+    struct ch_dl *plugin = (struct ch_dl *) arg;
+    struct ch_dl_cx *cx = &plugin->cx;
+
+    uint32_t nonce = cx->nonce[cx->select];
+
+    while (cx->active) {
+        pthread_mutex_lock(&cx->mutex);
+
+        uint32_t idx = (cx->select + 1) % CH_DL_NUMBUF;
+        if (cx->nonce[idx] <= nonce)
+            pthread_cond_wait(&cx->cond, &cx->mutex);
+
+        if (!cx->active)
+            break;
+
+        nonce = cx->nonce[idx];
+        cx->select = idx;
+
+        pthread_mutex_unlock(&cx->mutex);
+
+        if (plugin->callback(&cx->out_buffer[cx->select]) == -1)
+            cx->active = false;
+    }
+
+    return (NULL);
+}
+
 int
-ch_call_plugins(struct ch_device *device, struct ch_decode_cx *decode,
+ch_create_plugin_thread(struct ch_dl *plugin)
+{
+    struct ch_dl_cx *cx = &plugin->cx;
+    cx->active = true;
+
+    if (ch_start_thread(&cx->thread, NULL, ch_plugin_thread, plugin) == -1)
+        return (-1);
+
+    return (0);
+}
+
+int
+ch_join_plugin_thread(struct ch_dl *plugin)
+{
+    plugin->cx.active = false;
+    pthread_cond_signal(&plugin->cx.cond);
+
+    if (ch_join_thread(plugin->cx.thread, NULL) == -1)
+        return (-1);
+
+    return (0);
+}
+
+int
+ch_update_plugins(struct ch_device *device, struct ch_decode_cx *decode,
                 struct ch_dl *plugins[], size_t n_plugins)
 {
     size_t idx;
     for (idx = 0; idx < n_plugins; idx++) {
         struct ch_dl_cx *cx = &plugins[idx]->cx;
 
-        if (ch_output(device, decode, cx) == -1)
+        pthread_mutex_lock(&cx->mutex);
+
+        // Should output into the next buffer (select + 1 % NUM)
+        if (ch_output(device, decode, &plugins[idx]->cx) == -1)
             return (-1);
 
-        if (plugins[idx]->callback(&cx->out_buffer[cx->select]) == -1)
-            return (-1);
+        pthread_mutex_unlock(&cx->mutex);
+        pthread_cond_signal(&cx->cond);
     }
 
     return (0);
@@ -94,9 +161,13 @@ int
 ch_quit_plugins(struct ch_dl *plugins[], size_t n_plugins)
 {
     size_t idx;
-    for (idx = 0; idx < n_plugins; idx++)
+    for (idx = 0; idx < n_plugins; idx++) {
         if (plugins[idx]->quit() == -1)
             ch_error("Failed to close plugin.");
+
+        if (ch_join_plugin_thread(plugins[idx]) == -1)
+            continue;
+    }
 
     return (0);
 }

@@ -1,5 +1,5 @@
 CC      = gcc
-CFLAGS  = -Wall -Wextra -g3 -O3 -Iinclude -fPIC
+CFLAGS  = -Wall -Wextra -g3 -O0 -Iinclude -fPIC
 LDFLAGS = -lswscale -lavutil -lavformat -lavcodec -lpthread -ldl
 
 # GTK configuration
