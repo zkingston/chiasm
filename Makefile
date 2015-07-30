@@ -1,7 +1,9 @@
 CC      = gcc
 CXX     = g++
-CFLAGS  = -Wall -Wextra -g3 -O0 -Iinclude -fPIC
+CFLAGS  = -Wall -Wextra -Iinclude -fPIC
 LDFLAGS = -lswscale -lavutil -lavformat -lavcodec -lpthread -ldl
+
+CFLAGS += -O2
 
 # GTK configuration
 CFLAGS  += `pkg-config --cflags gtk+-3.0`
@@ -29,6 +31,8 @@ LIBOBJS = $(patsubst %.c, %.o, $(LIBSRCS))
 LIBSRCSX = $(SRCDIR)/distortion.cpp
 LIBOBJSX = $(patsubst %.cpp, %.o, $(LIBSRCSX))
 
+LIBOBJS += $(LIBOBJSX)
+
 LIBRARY = libchiasm.a
 
 # Output programs and plugins.
@@ -38,7 +42,7 @@ OBJS = stream control output.so display.so apriltag.so calibrate.so
 all: $(LIBRARY) $(OBJS)
 
 # libchiasm building.
-$(LIBRARY): $(LIBOBJS) $(LIBOBJSX)
+$(LIBRARY): $(LIBOBJS)
 	ar ru $@ $^
 	ranlib $@
 	rm $^
@@ -56,7 +60,7 @@ $(LIBRARY): $(LIBOBJS) $(LIBOBJSX)
 
 # Program building.
 %: $(SRCDIR)/%.o $(LIBRARY)
-	$(CC) -o $@ $< $(LIBRARY) $(LDFLAGS)
+	$(CXX) -o $@ $< $(LIBRARY) $(LDFLAGS)
 
 # Clean up built objects.
 clean:

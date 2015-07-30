@@ -245,5 +245,8 @@ ch_output(struct ch_device *device, struct ch_decode_cx *decode,
 
     cx->nonce[idx] = cx->nonce[cx->select] + 1;
 
+    if (device->calib != NULL)
+        ch_undistort(device, cx, &cx->out_buffer[idx]);
+
     return (0);
 }

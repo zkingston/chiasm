@@ -2,6 +2,20 @@
 #define CHIASM_DISTORTION_H_
 
 #ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <chiasm/types.h>
+
+struct ch_calibration *ch_load_calibration(const char *filename);
+
+void ch_undistort(struct ch_device *device, struct ch_dl_cx *cx, struct ch_frmbuf *buf);
+
+#ifdef __cplusplus
+}
+#endif
+
+#ifdef __cplusplus
 
 #include <opencv2/core/core.hpp>
 

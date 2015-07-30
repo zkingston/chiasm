@@ -85,22 +85,25 @@ int
 main(int argc, char *argv[])
 {
     bool list = false;
+    char *calibration_file = NULL;
 
     ch_init_device(&device);
 
     int opt;
-    while ((opt = getopt(argc, argv, CH_OPTS "i:n:lh?")) != -1) {
+    while ((opt = getopt(argc, argv, CH_OPTS "c:i:n:lh?")) != -1) {
         switch (opt) {
         case 'd':
         case 't':
         case 'b':
         case 'f':
         case 'g':
-	case 'p':
-        case 's':
             if (ch_parse_device_opt(opt, optarg, &device) == -1)
                 return (-1);
 
+            break;
+
+        case 'c':
+            calibration_file = optarg;
             break;
 
         case 'l':
@@ -144,7 +147,7 @@ main(int argc, char *argv[])
 
     // Initialize early for cleanup control flow.
     int r = 0;
-   if ((r = ch_open_device(&device)) == -1)
+    if ((r = ch_open_device(&device)) == -1)
         goto cleanup;
 
     if (list) {
@@ -154,6 +157,12 @@ main(int argc, char *argv[])
 
     if ((r = ch_set_fmt(&device)) == -1)
         goto cleanup;
+
+    if (calibration_file) {
+        device.calib = ch_load_calibration(calibration_file);
+        if (device.calib == NULL)
+            goto cleanup;
+    }
 
     r = ch_stream(&device, plugins, plugin_max);
 

@@ -55,8 +55,6 @@ CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
     return (0);
 }
 
-cv::Mat image;
-
 int
 CH_DL_CALL(struct ch_frmbuf *in_buf)
 {
@@ -68,7 +66,7 @@ CH_DL_CALL(struct ch_frmbuf *in_buf)
     if (current_time - previous_time <= wait_time)
         return (0);
 
-    image = cv::Mat(image_size, CV_8UC1, in_buf->start);
+    cv::Mat image(image_size, CV_8UC1, in_buf->start);
     vector< cv::Point2f > image_point;
 
     // Find chessboard corners.
@@ -137,11 +135,6 @@ CH_DL_QUIT(void)
 
     ch_save_calibration(out_filename, image_size, board_size, square_size,
                         error, camera_mat, distortion_coeffs);
-
-    cv::Mat undistort;
-    cv::undistort(image, undistort, camera_mat, distortion_coeffs);
-
-    cerr << undistort.size() << endl;
 
     return (0);
 }

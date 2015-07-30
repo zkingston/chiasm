@@ -211,6 +211,8 @@ ch_init_device(struct ch_device *device)
     device->timeout = ch_sec_to_timeval(CH_DEFAULT_TIMEOUT);
     device->stream = false;
     device->fps = 0.0;
+
+    device->calib = NULL;
 }
 
 int
@@ -1005,7 +1007,6 @@ ch_stream(struct ch_device *device, struct ch_dl **plugins, uint32_t n_plugins)
         // Decode the new frame.
         if ((r = ch_decode(device, &device->in_buffers[buf.index], &decode)) == -1)
             break;
-
 
         if ((r = ch_update_plugins(device, &decode, plugins, n_plugins)) == -1)
             break;
