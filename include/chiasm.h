@@ -10,6 +10,7 @@ extern "C" {
 #include <chiasm/device.h>
 #include <chiasm/decode.h>
 #include <chiasm/plugin.h>
+#include <chiasm/distortion.h>
 
 #ifdef __cplusplus
 }

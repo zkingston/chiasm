@@ -42,5 +42,10 @@
 *.jpg
 *.rgb
 *.yuv
+
+# Programs
 /control
 /stream
+
+# Informational files
+*.xml

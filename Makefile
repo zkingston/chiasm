@@ -25,6 +25,10 @@ PLGDIR  = $(SRCDIR)/plugin
 # Library configuration
 LIBSRCS = $(SRCDIR)/device.c $(SRCDIR)/decode.c $(SRCDIR)/util.c $(SRCDIR)/plugin.c
 LIBOBJS = $(patsubst %.c, %.o, $(LIBSRCS))
+
+LIBSRCS += $(SRCDIR)/distortion.cpp
+LIBOBJS += $(patsubst %.cpp, %.o, $(LIBSRCS))
+
 LIBRARY = libchiasm.a
 
 # Output programs and plugins.

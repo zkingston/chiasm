@@ -133,17 +133,8 @@ CH_DL_QUIT(void)
     cerr << "Distortion Coefficients:" << endl;
     cerr << distortion_coeffs << endl;
 
-    // Output calibration to saved file.
-    cv::FileStorage out(out_filename, cv::FileStorage::WRITE);
-
-    out << "image_size" << image_size;
-    out << "board_size" << board_size;
-    out << "square_size" << square_size;
-    out << "reprojection_error" << error;
-    out << "camera_matrix" << camera_mat;
-    out << "distortion_coefficients" << distortion_coeffs;
-
-    out.release();
+    ch_save_calibration(out_filename, image_size, board_size, square_size,
+                        error, camera_mat, distortion_coeffs);
 
     return (0);
 }
