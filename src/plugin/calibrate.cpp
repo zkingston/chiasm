@@ -19,8 +19,8 @@ int    chess_flag = 0; // Calibration board finding flags.
 string out_filename = "calibration.xml";
 
 cv::Size image_size;          // Size of the image.
-cv::Size board_size(6, 4);    // Size of the calibration board.
-double   square_size = 10.0;  // Size of a square on the calibration board.
+cv::Size board_size(4, 4);    // Size of the calibration board.
+double   square_size = 10.0;  // Size of a square on the calibration board in mm.
 
 cv::Size search_size(11, 11); // Subpixel refinement search window.
 int      search_iter = 30;    // Subpixel refinement maximum iteration count.
@@ -42,7 +42,7 @@ CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 
     // Set flags for calibration.
     calib_flag |= CV_CALIB_FIX_PRINCIPAL_POINT;
-    calib_flag |= CV_CALIB_FIX_ASPECT_RATIO;
+    // calib_flag |= CV_CALIB_FIX_ASPECT_RATIO;
 
     // Set flags for finding calibration board.
     chess_flag |= CV_CALIB_CB_ADAPTIVE_THRESH;
@@ -76,7 +76,8 @@ CH_DL_CALL(struct ch_frmbuf *in_buf)
     if (!found)
         return (0);
 
-    fprintf(stderr, "Found calibration board!\n");
+    cerr << "Found calibration board!" << endl;
+    cerr.flush();
 
     // Set time.
     previous_time = current_time;
@@ -127,6 +128,22 @@ CH_DL_QUIT(void)
         distortion_coeffs, rotation_vec, translation_vec, calib_flag);
 
     cerr << "Camera calibrated. Reprojection error: " << error << endl;
+    cerr << "Intrisic Matrix:" << endl;
+    cerr << camera_mat << endl;
+    cerr << "Distortion Coefficients:" << endl;
+    cerr << distortion_coeffs << endl;
+
+    // Output calibration to saved file.
+    cv::FileStorage out(out_filename, cv::FileStorage::WRITE);
+
+    out << "image_size" << image_size;
+    out << "board_size" << board_size;
+    out << "square_size" << square_size;
+    out << "reprojection_error" << error;
+    out << "camera_matrix" << camera_mat;
+    out << "distortion_coefficients" << distortion_coeffs;
+
+    out.release();
 
     return (0);
 }
