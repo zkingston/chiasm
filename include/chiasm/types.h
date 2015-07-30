@@ -95,6 +95,18 @@ struct ch_frmbuf {
 };
 
 /**
+ * @brief Camera calibration data.
+ */
+struct ch_calibration {
+    struct ch_rect framesize;  /**< Size of frame calibration was done on. */
+    struct ch_rect boardsize;  /**< Size of calibration board. */
+    double  squaresize;        /**< Size of square on calibration board. */
+    double  reproj_err;        /**< Reprojection error of calibration. */
+    double  camera_mat[3][3];  /**< Camera intrinsics matrix. */
+    double  distort_coeffs[5]; /**< Distortion coefficients of camera. */
+};
+
+/**
  * @brief A description of a video device and all associated context.
  */
 struct ch_device {
@@ -112,6 +124,8 @@ struct ch_device {
     struct timeval   timeout;     /**< Timeout on select to get new image. */
     bool             stream;      /**< Is the device currently streaming? */
     double           fps;         /**< Current framerate of the device. */
+
+    struct ch_calibration *calib; /**< Loaded calibration of camera. */
 };
 
 /**

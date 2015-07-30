@@ -26,8 +26,8 @@ PLGDIR  = $(SRCDIR)/plugin
 LIBSRCS = $(SRCDIR)/device.c $(SRCDIR)/decode.c $(SRCDIR)/util.c $(SRCDIR)/plugin.c
 LIBOBJS = $(patsubst %.c, %.o, $(LIBSRCS))
 
-LIBSRCS += $(SRCDIR)/distortion.cpp
-LIBOBJS += $(patsubst %.cpp, %.o, $(LIBSRCS))
+LIBSRCSX = $(SRCDIR)/distortion.cpp
+LIBOBJSX = $(patsubst %.cpp, %.o, $(LIBSRCSX))
 
 LIBRARY = libchiasm.a
 
@@ -38,7 +38,7 @@ OBJS = stream control output.so display.so apriltag.so calibrate.so
 all: $(LIBRARY) $(OBJS)
 
 # libchiasm building.
-$(LIBRARY): $(LIBOBJS)
+$(LIBRARY): $(LIBOBJS) $(LIBOBJSX)
 	ar ru $@ $^
 	ranlib $@
 	rm $^
