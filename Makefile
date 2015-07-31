@@ -14,12 +14,12 @@ CXXFLAGS = $(CFLAGS)
 
 # AprilTag configuration. Requires C99 mode.
 ATDIR   = ../apriltag
-CFLAGS  += -I$(ATDIR) -std=gnu99
+CFLAGS  += -I$(ATDIR)
 LDFLAGS += $(ATDIR)/libapriltag.a
 
 # OpenCV configuration
-CXXFLAGS  += `pkg-config --cflags opencv`
-LDFLAGS += `pkg-config --libs opencv`
+CXXFLAGS += `pkg-config --cflags opencv`
+LDFLAGS  += `pkg-config --libs opencv`
 
 SRCDIR  = src
 PLGDIR  = $(SRCDIR)/plugin
@@ -48,7 +48,7 @@ $(LIBRARY): $(LIBOBJS)
 	rm $^
 
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) $(CFLAGS) -std=gnu99 -c $< -o $@
 
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@

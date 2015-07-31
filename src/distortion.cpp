@@ -6,7 +6,6 @@
 
 #include <chiasm.h>
 
-// Load calibration file
 struct ch_calibration *
 ch_load_calibration(const char *filename)
 {
@@ -56,10 +55,11 @@ ch_load_calibration(const char *filename)
             calib->distort_coeffs[idx] = distort_coeffs.at<double>(idx);
     }
 
+    in.release();
+
     return (calib);
 }
 
-// Save calibration file
 void
 ch_save_calibration(string filename, cv::Size image_size, cv::Size board_size,
                     double square_size, double reproj_err,
@@ -77,6 +77,16 @@ ch_save_calibration(string filename, cv::Size image_size, cv::Size board_size,
     out.release();
 }
 
+/**
+ * @brief Convert a ch_frmbuf array image into a OpenCV Mat image.
+ *
+ * @param buf ch_frmbuf to convert.
+ * @param mat Output Mat to fill. Should already be allocated.
+ * @param size Image size.
+ * @param stride Stride of buf.
+ * @param b_per_pix Bytes per pixel in ch_frmbuf.
+ * @return None.
+ */
 static void
 ch_frmbuf_to_mat(struct ch_frmbuf *buf, cv::Mat &mat, struct ch_rect *size,
                  uint32_t stride, uint32_t b_per_pix)
@@ -99,6 +109,16 @@ ch_frmbuf_to_mat(struct ch_frmbuf *buf, cv::Mat &mat, struct ch_rect *size,
     }
 }
 
+/**
+ * @brief Convert an OpenCV Mat image into a ch_frmbuf array.
+ *
+ * @param mat Mat to convert.
+ * @param buf ch_frmbuf to output to.
+ * @param size Image size.
+ * @param stride Stride of buf.
+ * @param b_per_pix Bytes per pixel in ch_frmbuf.
+ * @return None.
+ */
 static void
 ch_mat_to_frmbuf(cv::Mat &mat, struct ch_frmbuf *buf, struct ch_rect *size,
                  uint32_t stride, uint32_t b_per_pix)
@@ -131,7 +151,7 @@ ch_undistort(struct ch_device *device, struct ch_dl_cx *cx, struct ch_frmbuf *bu
     ch_frmbuf_to_mat(buf, image, &device->framesize,
                      cx->out_stride, cx->b_per_pix);
 
-    cv::Mat undistorted;
+    cv::Mat undistorted(image_size, CV_8UC(cx->b_per_pix));
     cv::undistort(image, undistorted, camera_mat, distort_coeffs);
 
     ch_mat_to_frmbuf(undistorted, buf, &device->framesize,

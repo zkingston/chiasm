@@ -6,6 +6,9 @@
 int
 CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 {
+    device = (struct ch_device *) device;
+    cx = (struct ch_dl_cx *) cx;
+
     fprintf(stderr, "Initializing plugin.\n");
     return (0);
 }
@@ -13,8 +16,7 @@ CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 int
 CH_DL_CALL(struct ch_frmbuf *out)
 {
-    // fwrite(device->out_buffer.start, device->out_buffer.length, 1, stdout);
-    // fflush(stdout);
+    out = (struct ch_frmbuf *) out;
 
     fprintf(stderr, ".");
     fflush(stderr);
