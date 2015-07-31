@@ -104,6 +104,8 @@ struct ch_calibration {
     double  reproj_err;        /**< Reprojection error of calibration. */
     double  camera_mat[3][3];  /**< Camera intrinsics matrix. */
     double  distort_coeffs[5]; /**< Distortion coefficients of camera. */
+    void    *map1;             /**< Rectification map 1. */
+    void    *map2;             /**< Rectification map 2. */
 };
 
 /**

@@ -55,7 +55,6 @@ ch_load_calibration(struct ch_device *device, const char *filename)
         }
     }
 
-
     cv::Mat distort_coeffs;
     in["distortion_coefficients"] >> distort_coeffs;
     {
@@ -63,6 +62,16 @@ ch_load_calibration(struct ch_device *device, const char *filename)
         for (idx = 0; idx < 5; idx++)
             calib->distort_coeffs[idx] = distort_coeffs.at<double>(idx);
     }
+
+    cv::Mat *map1 = new cv::Mat();
+    cv::Mat *map2 = new cv::Mat();
+    cv::initUndistortRectifyMap(camera_mat, distort_coeffs, cv::Mat(),
+                                cv::getOptimalNewCameraMatrix(camera_mat, distort_coeffs,
+                                                              image_size, 1, image_size, 0),
+                                image_size, CV_16SC2, *map1, *map2);
+
+    calib->map1 = map1;
+    calib->map2 = map2;
 
     in.release();
 
@@ -74,8 +83,15 @@ ch_load_calibration(struct ch_device *device, const char *filename)
 void
 ch_close_calibration(struct ch_device *device)
 {
-    if (device->calib)
+    if (device->calib) {
+        cv::Mat *map1 = reinterpret_cast< cv::Mat * >(device->calib->map1);
+        cv::Mat *map2 = reinterpret_cast< cv::Mat * >(device->calib->map2);
+
+        delete map1;
+        delete map2;
+
         free(device->calib);
+    }
 
     device->calib = NULL;
 }
@@ -166,15 +182,16 @@ void
 ch_undistort(struct ch_device *device, struct ch_dl_cx *cx, struct ch_frmbuf *buf)
 {
     cv::Size image_size(device->framesize.width, device->framesize.height);
-    cv::Mat camera_mat(cv::Size(3, 3), CV_64F, device->calib->camera_mat);
-    cv::Mat distort_coeffs(cv::Size(5, 1), CV_64F, device->calib->distort_coeffs);
+
+    cv::Mat *map1 = reinterpret_cast< cv::Mat * >(device->calib->map1);
+    cv::Mat *map2 = reinterpret_cast< cv::Mat * >(device->calib->map2);
 
     cv::Mat image(image_size, CV_8UC(cx->b_per_pix));
     ch_frmbuf_to_mat(buf, image, &device->framesize,
                      cx->out_stride, cx->b_per_pix);
 
     cv::Mat undistorted(image_size, CV_8UC(cx->b_per_pix));
-    cv::undistort(image, undistorted, camera_mat, distort_coeffs);
+    cv::remap(image, undistorted, *map1, *map2, cv::INTER_LINEAR);
 
     ch_mat_to_frmbuf(undistorted, buf, &device->framesize,
                      cx->out_stride, cx->b_per_pix);
