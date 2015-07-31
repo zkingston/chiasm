@@ -158,15 +158,14 @@ main(int argc, char *argv[])
     if ((r = ch_set_fmt(&device)) == -1)
         goto cleanup;
 
-    if (calibration_file) {
-        device.calib = ch_load_calibration(calibration_file);
-        if (device.calib == NULL)
+    if (calibration_file)
+        if (ch_load_calibration(&device, calibration_file) == -1)
             goto cleanup;
-    }
 
     r = ch_stream(&device, plugins, plugin_max);
 
 cleanup:
+    ch_close_calibration(&device);
     ch_close_device(&device);
 
     size_t idx;

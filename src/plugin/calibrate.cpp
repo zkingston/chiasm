@@ -20,7 +20,7 @@ string out_filename = "calibration.xml";
 
 cv::Size image_size;          // Size of the image.
 cv::Size board_size(4, 4);    // Size of the calibration board.
-double   square_size = 10.0;  // Size of a square on the calibration board in mm.
+double   square_size = 29.0;  // Size of a square on the calibration board in mm.
 
 cv::Size search_size(11, 11); // Subpixel refinement search window.
 int      search_iter = 30;    // Subpixel refinement maximum iteration count.
@@ -42,7 +42,9 @@ CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 
     // Set flags for calibration.
     calib_flag |= CV_CALIB_FIX_PRINCIPAL_POINT;
-    // calib_flag |= CV_CALIB_FIX_ASPECT_RATIO;
+    calib_flag |= CV_CALIB_FIX_ASPECT_RATIO;
+    calib_flag |= CV_CALIB_FIX_K4;
+    calib_flag |= CV_CALIB_FIX_K5;
 
     // Set flags for finding calibration board.
     chess_flag |= CV_CALIB_CB_ADAPTIVE_THRESH;

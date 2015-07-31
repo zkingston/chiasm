@@ -10,10 +10,19 @@ extern "C" {
 /**
  * @brief Load a camera calibration saved from a file.
  *
+ * @param device The device to load the camera calibration for.
  * @param filename Filename of calibration file.
  * @return Allocated calibration file on success, NULL on failure.
  */
-struct ch_calibration *ch_load_calibration(const char *filename);
+int ch_load_calibration(struct ch_device *device, const char *filename);
+
+/**
+ * @brief Close a loaded calibration.
+ *
+ * @param device Device with a loaded calibration.
+ * @return None.
+ */
+void ch_close_calibration(struct ch_device *device);
 
 /**
  * @brief Undistorts an image based on a calibrated camera's parameters.

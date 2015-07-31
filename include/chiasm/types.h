@@ -119,7 +119,7 @@ struct ch_device {
 
     struct ch_rect   framesize;   /**< Size of frames in image stream. */
     uint32_t         in_pixfmt;   /**< Format of incoming pixels from stream.
-				        V4L pixelformat. */
+                                     V4L pixelformat. */
 
     struct timeval   timeout;     /**< Timeout on select to get new image. */
     bool             stream;      /**< Is the device currently streaming? */
@@ -132,9 +132,9 @@ struct ch_device {
  * @brief Decoding context for compressed image decoding.
  */
 struct ch_decode_cx {
-    AVCodecContext *codec_cx;   /**< libavcodec codec context. */
-    AVFrame        *frame_in;   /**< Allocated input frame. */
-    enum AVPixelFormat        in_pixfmt;  /**< Decoded output pixel format. */
+    AVCodecContext     *codec_cx;  /**< libavcodec codec context. */
+    AVFrame            *frame_in;  /**< Allocated input frame. */
+    enum AVPixelFormat in_pixfmt;  /**< Decoded output pixel format. */
 };
 
 /**
@@ -150,6 +150,8 @@ struct ch_dl_cx {
     pthread_cond_t     cond;       /**< Condition variable for thread. */
     bool               active;     /**< Is the plugin active? */
 
+    bool               undistort;  /**< If true, undistorts the image if
+                                      a calibration is loaded. */
     enum AVPixelFormat out_pixfmt; /**< Output pixel format. */
     uint32_t           b_per_pix;  /**< Bytes per pixel in output format. */
     uint32_t           out_stride; /**< Stride of the output image. */

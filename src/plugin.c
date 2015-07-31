@@ -51,6 +51,7 @@ ch_dl_load(const char *name)
     plugin->cx.out_stride = 0;
     plugin->cx.sws_cx = NULL;
     plugin->cx.frame_out = NULL;
+    plugin->cx.undistort = false;
 
     return (plugin);
 }
@@ -62,17 +63,27 @@ ch_dl_close(struct ch_dl *plugin)
     free(plugin);
 }
 
+struct ch_plugin_thread_args {
+    struct ch_dl *plugin;
+    struct ch_device *device;
+};
+
 /**
  * @brief A plugin thread that waits for new frames to arrive and performs a
  *        callback.
- * @param arg The plugin.
+ * @param arg The plugin and device stored inside a struct ch_plugin_thread_args.
  * @return Always NULL.
  */
 void *
 ch_plugin_thread(void *arg)
 {
-    struct ch_dl *plugin = (struct ch_dl *) arg;
+    struct ch_plugin_thread_args *args = (struct ch_plugin_thread_args *) arg;
+
+    struct ch_device *device = args->device;
+    struct ch_dl *plugin = args->plugin;
     struct ch_dl_cx *cx = &plugin->cx;
+
+    free(args);
 
     uint32_t nonce = cx->nonce[cx->select];
 
@@ -91,6 +102,9 @@ ch_plugin_thread(void *arg)
 
         pthread_mutex_unlock(&cx->mutex);
 
+        if (device->calib && cx->undistort)
+            ch_undistort(device, cx, &cx->out_buffer[cx->select]);
+
         if (plugin->callback(&cx->out_buffer[cx->select]) == -1)
             cx->active = false;
     }
@@ -105,12 +119,21 @@ ch_plugin_thread(void *arg)
  * @return 0 on success, -1 on failure.
  */
 static int
-ch_create_plugin_thread(struct ch_dl *plugin)
+ch_create_plugin_thread(struct ch_device *device, struct ch_dl *plugin)
 {
     struct ch_dl_cx *cx = &plugin->cx;
     cx->active = true;
 
-    if (ch_start_thread(&cx->thread, NULL, ch_plugin_thread, plugin) == -1)
+    struct ch_plugin_thread_args *args = (struct ch_plugin_thread_args *)
+        ch_calloc(1, sizeof(struct ch_plugin_thread_args));
+
+    if (args == NULL)
+        return (-1);
+
+    args->device = device;
+    args->plugin = plugin;
+
+    if (ch_start_thread(&cx->thread, NULL, ch_plugin_thread, args) == -1)
         return (-1);
 
     return (0);
@@ -149,7 +172,7 @@ ch_init_plugins(struct ch_device *device, struct ch_dl *plugins[], size_t n_plug
         if (ch_init_plugin_out(device, &plugins[idx]->cx) == -1)
             return (-1);
 
-        if (ch_create_plugin_thread(plugins[idx]) == -1)
+        if (ch_create_plugin_thread(device, plugins[idx]) == -1)
             return (-1);
     }
 

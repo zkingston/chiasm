@@ -6,26 +6,35 @@
 
 #include <chiasm.h>
 
-struct ch_calibration *
-ch_load_calibration(const char *filename)
+int
+ch_load_calibration(struct ch_device *device, const char *filename)
 {
     struct ch_calibration *calib =
         (struct ch_calibration *) ch_calloc(1, sizeof(struct ch_calibration));
 
     if (calib == NULL)
-        return (NULL);
+        return (-1);
 
     cv::FileStorage in((string) filename, cv::FileStorage::READ);
 
     if (!in.isOpened()) {
         ch_error((const char *) "Failed to open calibration file.");
-        return (NULL);
+        free(calib);
+        return (-1);
     }
 
     cv::Size image_size;
     in["image_size"] >> image_size;
+
     calib->framesize.width = image_size.width;
     calib->framesize.height = image_size.height;
+
+    if (calib->framesize.width != device->framesize.width
+        || calib->framesize.height != device->framesize.height) {
+        ch_error("Calibration file has mismatched framesize with device.");
+        free(calib);
+        return (-1);
+    }
 
     cv::Size board_size;
     in["board_size"] >> board_size;
@@ -57,8 +66,20 @@ ch_load_calibration(const char *filename)
 
     in.release();
 
-    return (calib);
+    device->calib = calib;
+
+    return (0);
 }
+
+void
+ch_close_calibration(struct ch_device *device)
+{
+    if (device->calib)
+        free(device->calib);
+
+    device->calib = NULL;
+}
+
 
 void
 ch_save_calibration(string filename, cv::Size image_size, cv::Size board_size,
@@ -87,7 +108,7 @@ ch_save_calibration(string filename, cv::Size image_size, cv::Size board_size,
  * @param b_per_pix Bytes per pixel in ch_frmbuf.
  * @return None.
  */
-static void
+void
 ch_frmbuf_to_mat(struct ch_frmbuf *buf, cv::Mat &mat, struct ch_rect *size,
                  uint32_t stride, uint32_t b_per_pix)
 {
@@ -119,7 +140,7 @@ ch_frmbuf_to_mat(struct ch_frmbuf *buf, cv::Mat &mat, struct ch_rect *size,
  * @param b_per_pix Bytes per pixel in ch_frmbuf.
  * @return None.
  */
-static void
+void
 ch_mat_to_frmbuf(cv::Mat &mat, struct ch_frmbuf *buf, struct ch_rect *size,
                  uint32_t stride, uint32_t b_per_pix)
 {
@@ -140,6 +161,7 @@ ch_mat_to_frmbuf(cv::Mat &mat, struct ch_frmbuf *buf, struct ch_rect *size,
         }
     }
 }
+
 void
 ch_undistort(struct ch_device *device, struct ch_dl_cx *cx, struct ch_frmbuf *buf)
 {

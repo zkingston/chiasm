@@ -168,6 +168,7 @@ CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 {
     // Setup requested output format.
     cx->out_pixfmt = AV_PIX_FMT_BGRA;
+    cx->undistort = true;
 
     // Create display thread.
     int r;
