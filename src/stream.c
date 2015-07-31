@@ -36,10 +36,10 @@ signal_handler(int signal)
  * @return 0 on success, -1 on failure.
  */
 static int
-list_formats(struct ch_device *device)
+list_formats(void)
 {
     // Get all formats
-    struct ch_fmts *fmts = ch_enum_fmts(device);
+    struct ch_fmts *fmts = ch_enum_fmts(&device);
     if (fmts == NULL)
         return (-1);
 
@@ -51,19 +51,19 @@ list_formats(struct ch_device *device)
 
         printf("%s:", pixfmt_buf);
 
-        device->in_pixfmt = fmts->fmts[idx];
-        struct ch_frmsizes *frmsizes = ch_enum_frmsizes(device);
+        device.in_pixfmt = fmts->fmts[idx];
+        struct ch_frmsizes *frmsizes = ch_enum_frmsizes(&device);
         if (frmsizes == NULL)
             break;
 
         size_t jdx;
         for (jdx = 0; jdx < frmsizes->length; jdx++) {
-            device->framesize.width = frmsizes->frmsizes[jdx].width;
-            device->framesize.height = frmsizes->frmsizes[jdx].height;
+            device.framesize.width = frmsizes->frmsizes[jdx].width;
+            device.framesize.height = frmsizes->frmsizes[jdx].height;
 
             printf(" %4ux%4u (%4.1f fps)",
-                   device->framesize.width, device->framesize.height,
-                   ch_get_fps(device));
+                   device.framesize.width, device.framesize.height,
+                   ch_get_fps(&device));
 
             if ((jdx + 1) % 3 == 0)
                 printf("\n     ");
@@ -86,6 +86,9 @@ main(int argc, char *argv[])
 {
     bool list = false;
     char *calibration_file = NULL;
+
+    // Enable error output to stderr.
+    ch_set_stderr(true);
 
     ch_init_device(&device);
 
@@ -142,8 +145,6 @@ main(int argc, char *argv[])
     // Install signal handlers to clean up and exit nicely.
     signal(SIGINT, signal_handler);
 
-    // Enable error output to stderr.
-    ch_set_stderr(true);
 
     // Initialize early for cleanup control flow.
     int r = 0;
@@ -151,7 +152,7 @@ main(int argc, char *argv[])
         goto cleanup;
 
     if (list) {
-        r = list_formats(&device);
+        r = list_formats();
         goto cleanup;
     }
 

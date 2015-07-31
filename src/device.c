@@ -31,7 +31,7 @@ ch_parse_double(char *optarg, double *value)
     char *ptr;
     double r = strtod(optarg, &ptr);
 
-    if (r == 0 && ptr == optarg)
+    if ((int) r == 0 && ptr == optarg)
         return (-1);
 
     if (errno == ERANGE)

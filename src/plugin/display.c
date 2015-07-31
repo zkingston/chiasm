@@ -124,7 +124,7 @@ setup_gui(void *arg)
 
     // Create output buffer for Cairo graphics.
     outbuf.length = 4 * device->framesize.width * device->framesize.height;
-    outbuf.start =
+    outbuf.start = (uint8_t *)
         ch_calloc(1, outbuf.length);
 
     if (outbuf.start == NULL)
