@@ -23,6 +23,34 @@ timer_callback(GtkWidget *widget)
 }
 
 /**
+ * @brief Resize a cairo surface.
+ */
+static cairo_surface_t *
+scale_surface(cairo_surface_t *old_surface, int old_width, int old_height,
+               int new_width, int new_height)
+{
+    cairo_surface_t *new_surface =
+        cairo_surface_create_similar(old_surface, CAIRO_CONTENT_COLOR,
+                                     new_width, new_height);
+
+    cairo_t *cr = cairo_create(new_surface);
+
+    cairo_scale(cr, (double) new_width / old_width,
+                (double) new_height / old_height);
+
+    cairo_set_source_surface(cr, old_surface, 0, 0);
+
+    cairo_pattern_set_extend(cairo_get_source(cr), CAIRO_EXTEND_REFLECT);
+
+    cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+
+    cairo_paint(cr);
+    cairo_destroy(cr);
+
+    return (new_surface);
+}
+
+/**
  * @brief Callback function for expose events. Draws the new image.
  */
 static gboolean
@@ -36,18 +64,35 @@ on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer data)
     int stride = cairo_format_stride_for_width(CAIRO_FORMAT_RGB24,
                                                device->framesize.width);
 
+    uint32_t dw = device->framesize.width;
+    uint32_t dh = device->framesize.height;
+
     cairo_surface_t *image = cairo_image_surface_create_for_data(
         outbuf.start,
         CAIRO_FORMAT_RGB24,
-        device->framesize.width,
-        device->framesize.height,
+        dw, dh,
         stride
     );
 
-    cairo_set_source_surface(cr, image, 0, 0);
+    int w = gtk_widget_get_allocated_width(widget);
+    int h = gtk_widget_get_allocated_height(widget);
+
+    double ar = fmin(w / (double) dw, h / (double) dh);
+
+    uint32_t sw = dw * ar;
+    uint32_t sh = dh * ar;
+
+    cairo_surface_t *simage =
+        scale_surface(image, dw, dh, sw, sh);
+
+    uint32_t ow = (w - sw) / 2;
+    uint32_t oh = (h - sh) / 2;
+
+    cairo_set_source_surface(cr, simage, ow, oh);
     cairo_paint(cr);
 
     cairo_surface_destroy(image);
+    cairo_surface_destroy(simage);
 
     cairo_select_font_face(cr, "Sans",
                            CAIRO_FONT_SLANT_NORMAL,
@@ -63,7 +108,7 @@ on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer data)
 
 
     cairo_set_source_rgb(cr, 1, 1, 1);
-    cairo_move_to(cr, 10, 18);
+    cairo_move_to(cr, ow + 10, oh + 18);
     cairo_show_text(cr, buf);
 
     return (FALSE);
