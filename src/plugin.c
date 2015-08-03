@@ -3,6 +3,7 @@
 
 #include <chiasm.h>
 
+
 struct ch_dl *
 ch_dl_load(const char *name)
 {
@@ -13,11 +14,11 @@ ch_dl_load(const char *name)
     plugin->so = dlopen(name, RTLD_NOW);
 
     if (plugin->so == NULL) {
-	ch_error("Failed to open dynamic library.");
-	ch_error(dlerror());
-	free(plugin);
+            ch_error("Failed to open dynamic library.");
+            ch_error(dlerror());
+            free(plugin);
 
-	return (NULL);
+            return (NULL);
     }
 
     dlerror();

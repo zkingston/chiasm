@@ -12,25 +12,29 @@ libchiasm_la_SOURCES = \
     src/util.c
 libchiasm_la_LIBADD = $(CHIASM_LIBS)
 
-bin_PROGRAMS = stream
-stream_SOURCES = src/stream.c
-stream_LDADD = libchiasm.la
+bin_PROGRAMS = ch_stream
+ch_stream_SOURCES = src/stream.c
+ch_stream_LDADD = libchiasm.la
 
-bin_PROGRAMS += control
-control_SOURCES = src/control.c
-control_LDADD = libchiasm.la
+bin_PROGRAMS += ch_control
+ch_control_SOURCES = src/control.c
+ch_control_LDADD = libchiasm.la
 
 PLUGIN_LDFLAGS = -avoid-version -module -shared -export-dynamic libchiasm.la
 
-pkglib_LTLIBRARIES = output.la
-output_la_SOURCES = src/plugin/output.c
-output_la_LDFLAGS = $(PLUGIN_LDFLAGS)
+pkglib_LTLIBRARIES = ch_output.la
+ch_output_la_SOURCES = src/plugin/output.c
+ch_output_la_LDFLAGS = $(PLUGIN_LDFLAGS)
 
-pkglib_LTLIBRARIES += display.la
-display_la_SOURCES = src/plugin/display.c
-display_la_CFLAGS = $(GTK_CFLAGS)
-display_la_LDFLAGS = $(PLUGIN_LDFLAGS) $(GTK_LIBS)
+pkglib_LTLIBRARIES += ch_display.la
+ch_display_la_SOURCES = src/plugin/display.c
+ch_display_la_CFLAGS = $(GTK_CFLAGS)
+ch_display_la_LDFLAGS = $(PLUGIN_LDFLAGS) $(GTK_LIBS)
 
-pkglib_LTLIBRARIES += calibrate.la
-calibrate_la_SOURCES = src/plugin/calibrate.cpp
-calibrate_la_LDFLAGS = $(PLUGIN_LDFLAGS)
+pkglib_LTLIBRARIES += ch_calibrate.la
+ch_calibrate_la_SOURCES = src/plugin/calibrate.cpp
+ch_calibrate_la_LDFLAGS = $(PLUGIN_LDFLAGS)
+
+pkglib_LTLIBRARIES += ch_apriltag.la
+ch_apriltag_la_SOURCES = src/plugin/apriltag.c
+ch_apriltag_la_LDFLAGS = $(PLUGIN_LDFLAGS) -lapriltag

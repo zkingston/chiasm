@@ -32,6 +32,8 @@ AC_SEARCH_LIBS([avcodec_find_decoder], [avcodec], [],
                [AC_MSG_ERROR([Unable to find sws_scale()])])
 AC_SEARCH_LIBS([sws_scale], [swscale], [],
                [AC_MSG_ERROR([Unable to find sws_scale()])])
+AC_SEARCH_LIBS([tag36h11_create], [apriltag], [],
+               [AC_MSG_ERROR([Unable to find tag36h11_create()])])
 
 PKG_CHECK_MODULES([OPENCV], [opencv])
 PKG_CHECK_MODULES([GTK], [gtk+-3.0])

@@ -74,3 +74,6 @@ missing
 /src/plugin/.dirstamp
 /stamp-h1
 /.libs/
+/ch_control
+/ch_stream
+/Makefile
