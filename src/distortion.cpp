@@ -128,21 +128,12 @@ void
 ch_frmbuf_to_mat(struct ch_frmbuf *buf, cv::Mat &mat, struct ch_rect *size,
                  uint32_t stride, uint32_t b_per_pix)
 {
-    // If image is a flat array, just copy directly.
-    if (stride == size->width * b_per_pix) {
-        uint8_t *dest = mat.ptr(0);
-        memcpy(dest, buf->start,
-               b_per_pix * size->width * size->height);
+    size_t idx;
+    for (idx = 0; idx < size->height; idx++) {
+        uint8_t *dest = mat.ptr(idx);
+        uint8_t *src = &buf->start[idx * stride];
 
-    // Otherwise, have to deal with the stride seperating image planes.
-    } else {
-        size_t idx;
-        for (idx = 0; idx < size->height; idx++) {
-            uint8_t *dest = mat.ptr(idx);
-            uint8_t *src = &buf->start[idx * stride];
-
-            memcpy(dest, src, b_per_pix * size->width);
-        }
+        memcpy(dest, src, b_per_pix * size->width);
     }
 }
 
@@ -160,21 +151,12 @@ void
 ch_mat_to_frmbuf(cv::Mat &mat, struct ch_frmbuf *buf, struct ch_rect *size,
                  uint32_t stride, uint32_t b_per_pix)
 {
-    // If image is a flat array, just copy directly.
-    if (stride == size->width * b_per_pix) {
-        uint8_t *src = mat.ptr(0);
-        memcpy(buf->start, src,
-               b_per_pix * size->width * size->height);
+    size_t idx;
+    for (idx = 0; idx < size->height; idx++) {
+        uint8_t *dest = &buf->start[idx * stride];
+        uint8_t *src = mat.ptr(idx);
 
-    // Otherwise, have to deal with the stride seperating image planes.
-    } else {
-        size_t idx;
-        for (idx = 0; idx < size->height; idx++) {
-            uint8_t *dest = &buf->start[idx * stride];
-            uint8_t *src = mat.ptr(idx);
-
-            memcpy(dest, src, b_per_pix * size->width);
-        }
+        memcpy(dest, src, b_per_pix * size->width);
     }
 }
 
@@ -186,13 +168,18 @@ ch_undistort(struct ch_device *device, struct ch_dl_cx *cx, struct ch_frmbuf *bu
     cv::Mat *map1 = reinterpret_cast< cv::Mat * >(device->calib->map1);
     cv::Mat *map2 = reinterpret_cast< cv::Mat * >(device->calib->map2);
 
-    cv::Mat image(image_size, CV_8UC(cx->b_per_pix));
-    ch_frmbuf_to_mat(buf, image, &device->framesize,
-                     cx->out_stride, cx->b_per_pix);
+    cv::Mat image;
+    if (cx->out_stride == device->framesize.width * cx->b_per_pix)
+        image = cv::Mat(image_size, CV_8UC(cx->b_per_pix), buf->start);
+    else {
+        image = cv::Mat(image_size, CV_8UC(cx->b_per_pix));
+        ch_frmbuf_to_mat(buf, image, &device->framesize,
+                         cx->out_stride, cx->b_per_pix);
+    }
 
-    cv::Mat undistorted(image_size, CV_8UC(cx->b_per_pix));
-    cv::remap(image, undistorted, *map1, *map2, cv::INTER_LINEAR);
+    cv::remap(image, image, *map1, *map2, cv::INTER_LINEAR);
 
-    ch_mat_to_frmbuf(undistorted, buf, &device->framesize,
-                     cx->out_stride, cx->b_per_pix);
+    if (cx->out_stride != device->framesize.width * cx->b_per_pix)
+        ch_mat_to_frmbuf(image, buf, &device->framesize,
+                         cx->out_stride, cx->b_per_pix);
 }
