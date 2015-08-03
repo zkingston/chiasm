@@ -3,6 +3,7 @@
 #include <pthread.h>
 
 #include <gtk/gtk.h>
+#include <gdk/gdkkeysyms.h>
 #include <libavformat/avformat.h>
 #include <libavcodec/avcodec.h>
 
@@ -10,6 +11,7 @@
 
 pthread_t gui_thread;
 struct ch_frmbuf outbuf;
+struct ch_dl_cx *dl_cx;
 
 /**
  * @brief Callback function that occurs on a timer. Used for repaint.
@@ -49,6 +51,8 @@ scale_surface(cairo_surface_t *old_surface, int old_width, int old_height,
 
     return (new_surface);
 }
+
+
 
 /**
  * @brief Callback function for expose events. Draws the new image.
@@ -115,6 +119,23 @@ on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer data)
 }
 
 /**
+ * @brief Keypress handler.
+ */
+gboolean
+on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data)
+{
+  switch (event->keyval) {
+  case GDK_KEY_p:
+      dl_cx->undistort = ((dl_cx->undistort) ? false : true);
+      break;
+  default:
+      break;
+  }
+
+  return (FALSE);
+}
+
+/**
  * @brief Initialize and start the GTK mainloop.
  */
 static void *
@@ -149,6 +170,9 @@ setup_gui(void *arg)
     g_signal_connect(G_OBJECT(drawRGB), "draw",
                      G_CALLBACK(on_draw_event), device);
 
+    g_signal_connect(G_OBJECT(window), "key_press_event",
+                     G_CALLBACK(on_key_press), NULL);
+
     // Register timer event.
     g_timeout_add(ch_get_fps(device), (GSourceFunc) timer_callback, (gpointer) drawRGB);
     timer_callback(drawRGB);
@@ -168,7 +192,9 @@ CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 {
     // Setup requested output format.
     cx->out_pixfmt = AV_PIX_FMT_BGRA;
-    cx->undistort = true;
+    cx->undistort = false;
+
+    dl_cx = cx;
 
     // Create display thread.
     int r;

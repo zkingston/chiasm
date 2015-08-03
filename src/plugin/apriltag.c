@@ -9,6 +9,8 @@
 #include <common/image_u8.h>
 #include <common/homography.h>
 
+#include <amino.h>
+
 #include <chiasm.h>
 
 apriltag_family_t *tag_family = NULL;
@@ -19,6 +21,22 @@ uint32_t width, height, stride;
 bool calib = false;
 double f[2];
 double c[2];
+
+static void
+pose_to_duqu(matd_t *p, double q[8])
+{
+    double tfmat[12];
+
+    size_t jdx;
+    for (jdx = 0; jdx < 4; jdx++) {
+        size_t idx;
+        for (idx = 0; idx < 3; idx++)
+            tfmat[idx + jdx * 4] = matd_get(p, idx, jdx);
+    }
+
+    aa_tf_tfmat2duqu(tfmat, q);
+}
+
 
 int
 CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
@@ -84,15 +102,17 @@ CH_DL_CALL(struct ch_frmbuf *in_buf)
             matd_t *pose = homography_to_pose(det->H,
                                               f[0], f[1], c[0], c[1]);
 
-            double x = matd_get(pose, 0, 3) * 20.5;
-            double y = matd_get(pose, 1, 3) * 20.5;
-            double z = matd_get(pose, 2, 3) * 20.5;
+            //double q[8];
+            //pose_to_duqu(pose, q);
 
-            fprintf(stderr, "Tag %d - (%5.2f, %5.2f, %5.2f)\n", det->id, x, y, z);
+            //size_t idx;
+            //for (idx = 0; idx < 8; idx++)
+            //    fprintf(stderr, "%f ", q[idx]);
+            //fprintf(stderr, "\n");
         }
     }
 
-    fprintf(stderr, "\n");
+    fprintf(stderr, "Tag!\n");
 
     apriltag_detections_destroy(detections);
 

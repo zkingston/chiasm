@@ -177,9 +177,9 @@ ch_undistort(struct ch_device *device, struct ch_dl_cx *cx, struct ch_frmbuf *bu
                          cx->out_stride, cx->b_per_pix);
     }
 
-    cv::remap(image, image, *map1, *map2, cv::INTER_LINEAR);
+    cv::Mat undist(image_size, CV_8UC(cx->b_per_pix));
+    cv::remap(image, undist, *map1, *map2, cv::INTER_LINEAR);
 
-    if (cx->out_stride != device->framesize.width * cx->b_per_pix)
-        ch_mat_to_frmbuf(image, buf, &device->framesize,
-                         cx->out_stride, cx->b_per_pix);
+    ch_mat_to_frmbuf(undist, buf, &device->framesize,
+                     cx->out_stride, cx->b_per_pix);
 }

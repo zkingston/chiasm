@@ -20,21 +20,21 @@ bin_PROGRAMS += ch_control
 ch_control_SOURCES = src/control.c
 ch_control_LDADD = libchiasm.la
 
-PLUGIN_LDFLAGS = -avoid-version -module -shared -export-dynamic libchiasm.la
+PLUGIN_LDFLAGS = -avoid-version -module -shared -export-dynamic
 
 pkglib_LTLIBRARIES = ch_output.la
 ch_output_la_SOURCES = src/plugin/output.c
-ch_output_la_LDFLAGS = $(PLUGIN_LDFLAGS)
+ch_output_la_LDFLAGS = $(PLUGIN_LDFLAGS) libchiasm.la
 
 pkglib_LTLIBRARIES += ch_display.la
 ch_display_la_SOURCES = src/plugin/display.c
 ch_display_la_CFLAGS = $(GTK_CFLAGS)
-ch_display_la_LDFLAGS = $(PLUGIN_LDFLAGS) $(GTK_LIBS)
+ch_display_la_LDFLAGS = $(PLUGIN_LDFLAGS) $(GTK_LIBS) libchiasm.la
 
 pkglib_LTLIBRARIES += ch_calibrate.la
 ch_calibrate_la_SOURCES = src/plugin/calibrate.cpp
-ch_calibrate_la_LDFLAGS = $(PLUGIN_LDFLAGS)
+ch_calibrate_la_LDFLAGS = $(PLUGIN_LDFLAGS) libchiasm.la
 
 pkglib_LTLIBRARIES += ch_apriltag.la
 ch_apriltag_la_SOURCES = src/plugin/apriltag.c
-ch_apriltag_la_LDFLAGS = $(PLUGIN_LDFLAGS) -lapriltag
+ch_apriltag_la_LDFLAGS = $(PLUGIN_LDFLAGS) -lapriltag -lamino libchiasm.la
