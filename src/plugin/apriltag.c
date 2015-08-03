@@ -20,7 +20,6 @@ bool calib = false;
 double f[2];
 double c[2];
 
-
 int
 CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 {
@@ -33,8 +32,8 @@ CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
         f[0] = device->calib->camera_mat[0][0];
         f[1] = device->calib->camera_mat[1][1];
 
-        c[0] = device->calib->camera_mat[2][0];
-        c[1] = device->calib->camera_mat[2][1];
+        c[0] = device->calib->camera_mat[0][2];
+        c[1] = device->calib->camera_mat[1][2];
     }
 
     cx->out_pixfmt = AV_PIX_FMT_GRAY8;
