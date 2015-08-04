@@ -51,6 +51,16 @@ ch_init_plugin_out(struct ch_device *device, struct ch_dl_cx *cx)
             goto clean;
     }
 
+    if (device->calib) {
+        device->calib->temp1 = (uint8_t *) ch_calloc(length, sizeof(uint8_t));
+        if (device->calib->temp1 == NULL)
+            goto clean;
+
+        device->calib->temp2 = (uint8_t *) ch_calloc(length, sizeof(uint8_t));
+        if (device->calib->temp2 == NULL)
+            goto clean;
+    }
+
     cx->frame_out = av_frame_alloc();
     if (cx->frame_out == NULL) {
         ch_error("Failed to allocated output frame.");

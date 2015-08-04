@@ -22,19 +22,21 @@ bool calib = false;
 double f[2];
 double c[2];
 
-static void
-pose_to_duqu(matd_t *p, double q[8])
+void
+pose_to_qv(matd_t *p, double q[7])
 {
-    double tfmat[12];
+    double R[9];
 
-    size_t jdx;
-    for (jdx = 0; jdx < 4; jdx++) {
-        size_t idx;
-        for (idx = 0; idx < 3; idx++)
-            tfmat[idx + jdx * 4] = matd_get(p, idx, jdx);
+    size_t idx;
+    for (idx = 0; idx < 3; idx++) {
+        size_t jdx;
+        for (jdx = 0; jdx < 3; jdx++)
+            AA_MATREF(R, 3, idx, jdx) = matd_get(p, idx, jdx);
+
+        q[4 + idx] = matd_get(p, idx, 3);
     }
 
-    aa_tf_tfmat2duqu(tfmat, q);
+    aa_tf_rotmat2quat(R, q);
 }
 
 
@@ -102,13 +104,13 @@ CH_DL_CALL(struct ch_frmbuf *in_buf)
             matd_t *pose = homography_to_pose(det->H,
                                               f[0], f[1], c[0], c[1]);
 
-            //double q[8];
-            //pose_to_duqu(pose, q);
+            double q[7];
+            pose_to_qv(pose, q);
 
-            //size_t idx;
-            //for (idx = 0; idx < 8; idx++)
-            //    fprintf(stderr, "%f ", q[idx]);
-            //fprintf(stderr, "\n");
+            size_t idx;
+            for (idx = 0; idx < 7; idx++)
+                fprintf(stderr, "%f ", q[idx]);
+            fprintf(stderr, "\n");
         }
     }
 

@@ -106,6 +106,8 @@ struct ch_calibration {
     double  distort_coeffs[5]; /**< Distortion coefficients of camera. */
     void    *map1;             /**< Rectification map 1. */
     void    *map2;             /**< Rectification map 2. */
+    uint8_t *temp1;            /**< Temporary buffer used for undistort. */
+    uint8_t *temp2;            /**< Temporary buffer used for undistort. */
 };
 
 /**

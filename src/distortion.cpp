@@ -90,6 +90,12 @@ ch_close_calibration(struct ch_device *device)
         delete map1;
         delete map2;
 
+        if (device->calib->temp1)
+            free(device->calib->temp1);
+
+        if (device->calib->temp2)
+            free(device->calib->temp2);
+
         free(device->calib);
     }
 
@@ -172,14 +178,20 @@ ch_undistort(struct ch_device *device, struct ch_dl_cx *cx, struct ch_frmbuf *bu
     if (cx->out_stride == device->framesize.width * cx->b_per_pix)
         image = cv::Mat(image_size, CV_8UC(cx->b_per_pix), buf->start);
     else {
-        image = cv::Mat(image_size, CV_8UC(cx->b_per_pix));
+        image = cv::Mat(image_size, CV_8UC(cx->b_per_pix), device->calib->temp1);
         ch_frmbuf_to_mat(buf, image, &device->framesize,
                          cx->out_stride, cx->b_per_pix);
     }
 
-    cv::Mat undist(image_size, CV_8UC(cx->b_per_pix));
+    cv::Mat undist(image_size, CV_8UC(cx->b_per_pix), device->calib->temp2);
     cv::remap(image, undist, *map1, *map2, cv::INTER_LINEAR);
 
-    ch_mat_to_frmbuf(undist, buf, &device->framesize,
-                     cx->out_stride, cx->b_per_pix);
+    if (cx->out_stride == device->framesize.width * cx->b_per_pix) {
+        uint8_t *temp = buf->start;
+        buf->start = device->calib->temp2;
+        device->calib->temp2 = temp;
+    } else {
+        ch_mat_to_frmbuf(undist, buf, &device->framesize,
+                         cx->out_stride, cx->b_per_pix);
+    }
 }

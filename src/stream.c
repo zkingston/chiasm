@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
@@ -49,7 +50,7 @@ list_formats(void)
         char pixfmt_buf[5];
         ch_pixfmt_to_string(fmts->fmts[idx], pixfmt_buf);
 
-        printf("%s:", pixfmt_buf);
+        printf("%4s:", pixfmt_buf);
 
         device.in_pixfmt = fmts->fmts[idx];
         struct ch_frmsizes *frmsizes = ch_enum_frmsizes(&device);
@@ -145,8 +146,6 @@ main(int argc, char *argv[])
     // Install signal handlers to clean up and exit nicely.
     signal(SIGINT, signal_handler);
 
-
-    // Initialize early for cleanup control flow.
     int r = 0;
     if ((r = ch_open_device(&device)) == -1)
         goto cleanup;
