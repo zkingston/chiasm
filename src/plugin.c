@@ -188,6 +188,9 @@ ch_update_plugins(struct ch_device *device, struct ch_decode_cx *decode,
     for (idx = 0; idx < n_plugins; idx++) {
         struct ch_dl_cx *cx = &plugins[idx]->cx;
 
+        if (!cx->active)
+            return (-1);
+
         pthread_mutex_lock(&cx->mutex);
 
         // Should output into the next buffer (select + 1 % NUM)

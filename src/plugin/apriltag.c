@@ -150,9 +150,7 @@ CH_DL_CALL(struct ch_frmbuf *in_buf)
     if (ACH_OK != r)
         ch_error("Failed to put marker message in ach channel.");
 
-
     apriltag_detections_destroy(detections);
-
     return (0);
 }
 
