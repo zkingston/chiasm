@@ -37,4 +37,4 @@ ch_calibrate_la_LDFLAGS = $(PLUGIN_LDFLAGS) libchiasm.la
 
 pkglib_LTLIBRARIES += ch_apriltag.la
 ch_apriltag_la_SOURCES = src/plugin/apriltag.c
-ch_apriltag_la_LDFLAGS = $(PLUGIN_LDFLAGS) -lapriltag -lamino libchiasm.la
+ch_apriltag_la_LDFLAGS = $(PLUGIN_LDFLAGS) -lapriltag -lamino -lsns libchiasm.la

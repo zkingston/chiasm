@@ -37,6 +37,8 @@ AC_SEARCH_LIBS([tag36h11_create], [apriltag], [],
                [AC_MSG_ERROR([Unable to find tag36h11_create()])])
 AC_SEARCH_LIBS([aa_tf_tfmat2duqu], [amino], [],
                [AC_MSG_ERROR([Unable to find aa_tf_tfmat2duqu()])])
+AC_SEARCH_LIBS([sns_start], [sns], [],
+               [AC_MSG_ERROR([Unable to find sns_start()])])
 
 PKG_CHECK_MODULES([OPENCV], [opencv])
 PKG_CHECK_MODULES([GTK], [gtk+-3.0])
