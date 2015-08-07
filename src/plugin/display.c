@@ -52,8 +52,6 @@ scale_surface(cairo_surface_t *old_surface, int old_width, int old_height,
     return (new_surface);
 }
 
-
-
 /**
  * @brief Callback function for expose events. Draws the new image.
  */
@@ -121,18 +119,21 @@ on_draw_event(GtkWidget *widget, cairo_t *cr, gpointer data)
 /**
  * @brief Keypress handler.
  */
-gboolean
-on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer user_data)
+static gboolean
+on_key_press (GtkWidget *widget, GdkEventKey *event, gpointer data)
 {
-  switch (event->keyval) {
-  case GDK_KEY_p:
-      dl_cx->undistort = ((dl_cx->undistort) ? false : true);
-      break;
-  default:
-      break;
-  }
+    widget = (GtkWidget *) widget;
+    data = (gpointer) data;
 
-  return (FALSE);
+    switch (event->keyval) {
+    case GDK_KEY_p:
+        dl_cx->undistort = ((dl_cx->undistort) ? false : true);
+        break;
+    default:
+        break;
+    }
+
+    return (FALSE);
 }
 
 /**

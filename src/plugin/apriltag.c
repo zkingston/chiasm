@@ -48,6 +48,7 @@ pose_to_q(matd_t *p, double q[4])
 int
 CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
 {
+    // We need device calibration in order to localize tags.
     if (device->calib == NULL)
         return (-1);
 
@@ -85,6 +86,7 @@ CH_DL_INIT(struct ch_device *device, struct ch_dl_cx *cx)
     tag_detector->refine_decode = 0;
     tag_detector->refine_pose = 0;
 
+    // Set up channel to publish marker information over.
     sns_init();
 
     ach_attr_t attr;
@@ -124,7 +126,7 @@ CH_DL_CALL(struct ch_frmbuf *in_buf)
         zarray_get(detections, i, &det);
 
         if (det->id > MAX_TAG_ID) {
-            fprintf(stderr, "Tag ID greater than message size.\n");
+            ch_error("Tag ID greater than maximum allowed ID");
             return (-1);
         }
 
